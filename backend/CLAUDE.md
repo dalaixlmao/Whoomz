@@ -89,3 +89,23 @@ pytest tests/test_<name>.py -v
 - Do not put business logic in routers — use services
 - Do not commit `.env` or secrets
 - Do not return raw Supabase response objects — always serialize via Pydantic schemas
+
+---
+
+## Skills Reference
+
+Use these skills (via `/skill-name`) for common tasks in this project:
+
+| Skill | When to Use |
+|---|---|
+| `/fast-api` | Creating routes, routers, schemas, dependencies, middleware, auth guards, or tests in FastAPI |
+| `/context7-mcp` | Looking up docs for FastAPI, Pydantic, Supabase, httpx, pytest, or any other library used here |
+| `/clean-code-habits` | Reviewing naming conventions, function length, type hints, or general Python code quality |
+| `/engineering-principles` | Designing services, applying SOLID/DRY/KISS, or structuring classes and patterns |
+| `/security-review` | Auditing auth flows, Supabase row-level security, input validation, or secret handling |
+| `/verify` | Confirming a fix or new feature actually works end-to-end against the running server |
+| `/run` | Starting the dev server and observing live app behaviour |
+| `/simplify` | Refactoring changed code for reuse, clarity, and efficiency after a feature is complete |
+| `/review` | Reviewing a pull request before merging |
+| `/update-config` | Changing Claude Code permissions, hooks, or harness settings (`settings.json`) |
+| `/fewer-permission-prompts` | Reducing repetitive permission prompts by allowlisting common read-only commands |
