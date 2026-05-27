@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.routers import health, voice
+from app.routers import auth, health, voice
 
 logger = logging.getLogger(__name__)
 
@@ -26,3 +26,4 @@ app = FastAPI(
 
 app.include_router(health.router, prefix=API_PREFIX)
 app.include_router(voice.router, prefix=API_PREFIX)
+app.include_router(auth.router, prefix=API_PREFIX)
