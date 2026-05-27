@@ -7,10 +7,10 @@ from typing import AsyncIterator
 
 import anthropic
 
-logger = logging.getLogger(__name__)
-
 from app.config import settings
 from app.schemas.voice import Message
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -29,6 +29,20 @@ SYSTEM_PROMPT = (
 
 # Sentence-boundary detection: split after . ! ? followed by whitespace or EOS
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[.!?])$")
+
+# Shared client — one instance reuses the connection pool across all requests
+_anthropic = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+# ---------------------------------------------------------------------------
+# SSE helpers
+# ---------------------------------------------------------------------------
+
+
+def _sse(data: dict) -> str:
+    return f"data: {json.dumps(data)}\n\n"
+
+
+_SSE_DONE = 'data: {"done": true}\n\n'
 
 # ---------------------------------------------------------------------------
 # In-memory history store: { session_id: (user_id, [Message]) }
@@ -56,16 +70,9 @@ def _get_or_create_session(session_id: str, user_id: str) -> list[Message]:
     Assumes ownership has already been validated via :func:`validate_session`.
     """
     if session_id not in _history:
-        messages: list[Message] = []
-        _history[session_id] = (user_id, messages)
-
+        _history[session_id] = (user_id, [])
     _, messages = _history[session_id]
     return messages
-
-
-def _trim_history(messages: list[Message]) -> list[Message]:
-    """Return the last MAX_HISTORY messages, always keeping pairs."""
-    return messages[-MAX_HISTORY:]
 
 
 def _build_api_messages(messages: list[Message]) -> list[dict]:
@@ -88,20 +95,16 @@ async def chat(
         ``data: {"text": "<sentence>"}\\n\\n``  — one per sentence boundary
         ``data: {"done": true}\\n\\n``           — terminal event
     """
-    # Ownership already validated by the router; just fetch/create the session.
     messages = _get_or_create_session(session_id, user_id)
-
-    # Append the new user turn before calling the API
     messages.append(Message(role="user", content=transcript))
-    messages[:] = _trim_history(messages)
+    if len(messages) > MAX_HISTORY:
+        del messages[:-MAX_HISTORY]
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-
-    full_reply: list[str] = []
     sentence_buffer = ""
+    yielded: list[str] = []  # completed sentences, used to build the assistant history entry
 
     try:
-        async with client.messages.stream(
+        async with _anthropic.messages.stream(
             model=MODEL,
             max_tokens=MAX_TOKENS,
             system=SYSTEM_PROMPT,
@@ -109,36 +112,32 @@ async def chat(
         ) as stream:
             async for token in stream.text_stream:
                 sentence_buffer += token
-                full_reply.append(token)
-
-                # Flush completed sentences immediately so TTS can start early
                 parts = _SENTENCE_END.split(sentence_buffer)
                 while len(parts) > 1:
                     sentence = parts.pop(0).strip()
                     if sentence:
-                        yield f"data: {json.dumps({'text': sentence})}\n\n"
+                        yield _sse({"text": sentence})
+                        yielded.append(sentence)
                     sentence_buffer = parts[0] if parts else ""
 
     except anthropic.APIStatusError as exc:
         logger.error("Anthropic API error %s: %s", exc.status_code, exc.message)
-        yield f"data: {json.dumps({'error': 'AI service error, please try again.'})}\n\n"
-        yield 'data: {"done": true}\n\n'
+        yield _sse({"error": "AI service error, please try again."})
+        yield _SSE_DONE
         return
     except anthropic.APIConnectionError:
         logger.exception("Anthropic connection error")
-        yield f"data: {json.dumps({'error': 'Could not reach AI service, please try again.'})}\n\n"
-        yield 'data: {"done": true}\n\n'
+        yield _sse({"error": "Could not reach AI service, please try again."})
+        yield _SSE_DONE
         return
 
-    # Flush any remaining text that didn't end with punctuation
-    remainder = sentence_buffer.strip()
-    if remainder:
-        yield f"data: {json.dumps({'text': remainder})}\n\n"
+    if remainder := sentence_buffer.strip():
+        yield _sse({"text": remainder})
+        yielded.append(remainder)
 
-    # Persist the assistant reply to history
-    assistant_reply = "".join(full_reply).strip()
-    if assistant_reply:
+    if assistant_reply := " ".join(yielded):
         messages.append(Message(role="assistant", content=assistant_reply))
-        messages[:] = _trim_history(messages)
+        if len(messages) > MAX_HISTORY:
+            del messages[:-MAX_HISTORY]
 
-    yield 'data: {"done": true}\n\n'
+    yield _SSE_DONE
