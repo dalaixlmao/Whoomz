@@ -44,6 +44,60 @@ uvicorn app.main:app --reload
 
 ---
 
+## Data Model
+
+### `users`
+Owned by Supabase Auth. Referenced everywhere via `user_id`.
+
+---
+
+### `food_logs`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| user_id | uuid FK | |
+| name | text | "Chicken Rice Bowl" |
+| calories | int | kcal |
+| protein_g | float | optional |
+| carbs_g | float | optional |
+| fat_g | float | optional |
+| meal_type | enum | breakfast / lunch / dinner / snack |
+| logged_at | timestamptz | defaults to now() |
+
+---
+
+### `workouts`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| user_id | uuid FK | |
+| name | text | "Leg Day", "Boxing Session" |
+| notes | text | optional |
+| started_at | timestamptz | |
+| finished_at | timestamptz | nullable — null means in progress |
+
+---
+
+### `workout_exercises`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| workout_id | uuid FK | |
+| exercise_name | text | "Squat", "Jump Rope", "Open Water Swim" |
+| tracking_type | enum | sets_reps_weight / distance_duration / laps / duration_only / freeform |
+| metrics | jsonb | flexible payload per tracking_type (see below) |
+| order | int | display order within session |
+| notes | text | optional |
+
+**`metrics` shape by `tracking_type`:**
+- `sets_reps_weight` → `{ sets: [{set_number, reps, weight_kg}] }`
+- `distance_duration` → `{ distance_km, duration_seconds, avg_heart_rate? }`
+- `laps` → `{ laps: [{lap_number, lap_time_seconds, distance_m?}] }`
+- `duration_only` → `{ duration_seconds }`
+- `freeform` → `{}` (notes field carries everything)
+
+---
+
 ## Code Conventions
 
 - **Async everywhere** — use `async def` for all route handlers and DB calls
