@@ -28,3 +28,13 @@ class WorkoutResponse(BaseModel):
     notes: str | None
     started_at: datetime
     finished_at: datetime | None  # None = in progress
+
+
+# Imported here (not at top) to avoid a circular import — workout_exercise imports nothing from workout.
+from app.schemas.workout_exercise import WorkoutExerciseResponse  # noqa: E402
+
+
+class WorkoutDetailResponse(WorkoutResponse):
+    """Full workout detail: session fields + all exercises ordered by `order`."""
+
+    exercises: list[WorkoutExerciseResponse] = []
