@@ -1,0 +1,512 @@
+{
+  "info": {
+    "name": "Whoomz API",
+    "description": "Fitness tracking REST API — calories, workouts, and the AI fitness coach.\n\n## Setup\n1. Set the `base_url` collection variable (default: `http://localhost:8000`).\n2. Run **Signup** or **Login** — the `access_token` and `refresh_token` variables are saved automatically via the test script.\n3. All authenticated requests pick up the token from `{{access_token}}`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workout_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "exercise_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "food_log_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/health/",
+            "description": "Returns 200 if the server is running."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/signup",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Anubhav\",\n  \"email\": \"anubhav@example.com\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "description": "Create a new account. Saves `access_token` and `refresh_token` to collection variables automatically."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"anubhav@example.com\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "description": "Login with existing credentials. Saves tokens to collection variables."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "description": "Exchange a refresh token for a new access token."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/logout",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "Invalidates the current session. Returns 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Food Logs",
+      "item": [
+        {
+          "name": "Log Food",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('food_log_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/food-logs/",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chicken Rice Bowl\",\n  \"calories\": 650,\n  \"protein_g\": 45.0,\n  \"carbs_g\": 70.0,\n  \"fat_g\": 12.0,\n  \"meal_type\": \"lunch\"\n}"
+            },
+            "description": "Log a food item. `meal_type` must be one of: `breakfast`, `lunch`, `dinner`, `snack`.\n\n`logged_at` is optional — defaults to `now()` in the DB.\n\nSaves `food_log_id` to collection variables."
+          }
+        },
+        {
+          "name": "List Food Logs (by date)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/food-logs/?date=2026-05-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "food-logs", ""],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-05-28",
+                  "description": "Calendar date in YYYY-MM-DD format"
+                }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "Returns all food logs for the authenticated user on the given date."
+          }
+        },
+        {
+          "name": "Delete Food Log",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/food-logs/{{food_log_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "Delete a food log by ID. Returns 204 No Content. Uses `food_log_id` variable saved during Log Food."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workouts",
+      "item": [
+        {
+          "name": "Create Workout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('workout_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workouts/",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Leg Day\",\n  \"notes\": \"Focus on depth in squats\",\n  \"started_at\": \"2026-05-28T09:00:00+00:00\"\n}"
+            },
+            "description": "Start a new workout session. `finished_at` is null until the session is explicitly closed via PATCH.\n\nSaves `workout_id` to collection variables."
+          }
+        },
+        {
+          "name": "List Workouts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/workouts/?date=2026-05-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "workouts", ""],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-05-28",
+                  "description": "Optional date filter (YYYY-MM-DD). Omit to return all workouts."
+                }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "List workouts for the authenticated user. Filter by date is optional."
+          }
+        },
+        {
+          "name": "Get Workout (with exercises)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "Fetch a single workout with all its exercises ordered by `order`."
+          }
+        },
+        {
+          "name": "Update Workout",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Leg Day — Heavy\",\n  \"notes\": \"PRs across the board\",\n  \"finished_at\": \"2026-05-28T10:30:00+00:00\"\n}"
+            },
+            "description": "Update workout fields. Set `finished_at` to mark the session as complete. All fields are optional."
+          }
+        },
+        {
+          "name": "Delete Workout",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "Delete a workout and all its exercises. Returns 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workout Exercises",
+      "item": [
+        {
+          "name": "Add Exercise — sets/reps/weight",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('exercise_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exercise_name\": \"Back Squat\",\n  \"tracking_type\": \"sets_reps_weight\",\n  \"metrics\": {\n    \"sets\": [\n      { \"set_number\": 1, \"reps\": 5, \"weight_kg\": 100 },\n      { \"set_number\": 2, \"reps\": 5, \"weight_kg\": 110 },\n      { \"set_number\": 3, \"reps\": 3, \"weight_kg\": 120 }\n    ]\n  },\n  \"order\": 1,\n  \"notes\": \"Felt strong today\"\n}"
+            },
+            "description": "Add a `sets_reps_weight` exercise. Saves `exercise_id` to collection variables."
+          }
+        },
+        {
+          "name": "Add Exercise — distance/duration",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exercise_name\": \"Morning Run\",\n  \"tracking_type\": \"distance_duration\",\n  \"metrics\": {\n    \"distance_km\": 5.2,\n    \"duration_seconds\": 1560,\n    \"avg_heart_rate\": 148\n  },\n  \"order\": 2\n}"
+            },
+            "description": "Add a `distance_duration` exercise (e.g. running, cycling)."
+          }
+        },
+        {
+          "name": "Add Exercise — laps",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exercise_name\": \"Pool Swim\",\n  \"tracking_type\": \"laps\",\n  \"metrics\": {\n    \"laps\": [\n      { \"lap_number\": 1, \"lap_time_seconds\": 58, \"distance_m\": 50 },\n      { \"lap_number\": 2, \"lap_time_seconds\": 61, \"distance_m\": 50 }\n    ]\n  },\n  \"order\": 3\n}"
+            },
+            "description": "Add a `laps` exercise (e.g. swimming, track)."
+          }
+        },
+        {
+          "name": "Add Exercise — duration only",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exercise_name\": \"Plank\",\n  \"tracking_type\": \"duration_only\",\n  \"metrics\": {\n    \"duration_seconds\": 120\n  },\n  \"order\": 4\n}"
+            },
+            "description": "Add a `duration_only` exercise (e.g. plank, meditation)."
+          }
+        },
+        {
+          "name": "Add Exercise — freeform",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exercise_name\": \"Boxing Rounds\",\n  \"tracking_type\": \"freeform\",\n  \"metrics\": {},\n  \"order\": 5,\n  \"notes\": \"6 rounds, 3 min each, 1 min rest. Felt explosive.\"\n}"
+            },
+            "description": "Add a `freeform` exercise. `metrics` is empty `{}`; everything goes in `notes`."
+          }
+        },
+        {
+          "name": "Update Exercise",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises/{{exercise_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metrics\": {\n    \"sets\": [\n      { \"set_number\": 1, \"reps\": 5, \"weight_kg\": 100 },\n      { \"set_number\": 2, \"reps\": 5, \"weight_kg\": 110 },\n      { \"set_number\": 3, \"reps\": 3, \"weight_kg\": 125 }\n    ]\n  },\n  \"notes\": \"New PR on set 3!\"\n}"
+            },
+            "description": "Update exercise fields. All fields optional."
+          }
+        },
+        {
+          "name": "Delete Exercise",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/workouts/{{workout_id}}/exercises/{{exercise_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "description": "Remove a single exercise from a workout. Returns 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat (AI Coach)",
+      "item": [
+        {
+          "name": "Send Message (text mode)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/chat/",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"my-session-1\",\n  \"message\": \"How many calories have I had today?\",\n  \"mode\": \"text\"\n}"
+            },
+            "description": "Send a message to the AI fitness coach. The response is a Server-Sent Events (SSE) stream.\n\nEach event has the shape:\n```\ndata: {\"text\": \"sentence\"}\n```\nA final `data: {\"done\": true}` event marks the end of the turn.\n\n**`session_id`** — any unique string per conversation. Reuse the same ID to maintain context across turns.\n\n**`mode`** — `text` (default) or `voice`. The SSE format is identical for both; the client decides how to consume the stream.\n\nLive context (today's food logs + active workout) is automatically injected into the coach's system prompt from Supabase."
+          }
+        },
+        {
+          "name": "Send Message (voice mode)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/chat/",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"my-voice-session-1\",\n  \"message\": \"Am I on track for my calorie goal?\",\n  \"mode\": \"voice\"\n}"
+            },
+            "description": "Same as text mode — server streams complete sentences as SSE events. In voice mode the client pipes each `{text}` event to ElevenLabs TTS."
+          }
+        },
+        {
+          "name": "Continue Conversation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/chat/",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"my-session-1\",\n  \"message\": \"What should I eat for dinner then?\",\n  \"mode\": \"text\"\n}"
+            },
+            "description": "Reuse the same `session_id` to continue a conversation. History is maintained in-memory (last 20 messages) per session."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Voice",
+      "item": [
+        {
+          "name": "Voice Chat",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/voice/chat",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"voice-sess-1\",\n  \"transcript\": \"How many calories should I aim for today?\"\n}"
+            },
+            "description": "Legacy voice endpoint. Takes a speech-to-text `transcript` and streams SSE sentence events.\n\nFor new integrations prefer POST /api/v1/chat/ with `mode: \"voice\"` which also injects live Supabase context."
+          }
+        }
+      ]
+    }
+  ]
+}
