@@ -1,0 +1,8 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Intentionally disabled: repositories use `if (x != null)` to omit fields
+    # from PATCH bodies rather than sending explicit nulls (which would overwrite
+    # server-side data).
+    use_null_aware_elements: false
