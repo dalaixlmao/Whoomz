@@ -196,14 +196,49 @@ Key gotchas:
 
 ## Skills Reference
 
+Use these skills and tools when they fit the task:
+
+| Skill / Tool | When to Use |
+|---|---|
+| `/flutter-integration` | Generate repository code, API models, SSE streaming, or auth flows for the Whoomz backend |
+| `/context7-mcp` | Look up package documentation for Flutter, Riverpod, Dio, freezed, flutter_secure_storage, or related dependencies |
+| `/verify` | Confirm a fix or feature works end-to-end on a simulator or device |
+| `/run` | Start the app and observe live behavior |
+| `/simplify` | Refactor changed code for clarity and efficiency after a feature is complete |
+| `/review` | Review a pull request or local diff before merging |
+| `/security-review` | Audit token storage, auth flows, API calls, or input handling |
+| `/update-config` | Change Claude Code permissions, hooks, or harness settings |
+| `/fewer-permission-prompts` | Reduce repetitive permission prompts by allowlisting common read-only commands |
+| `imagegen` | Create or edit bitmap assets, mockups, sprites, textures, or visual references when the app needs generated imagery |
+| `browser-use` | Inspect, navigate, screenshot, or test local browser targets such as `localhost`, `127.0.0.1`, or `file://` URLs |
+| `documents` | Create, edit, render, and verify `.docx` files |
+| `presentations` | Create, edit, render, verify, or export PowerPoint decks |
+| `spreadsheets` | Create, edit, analyze, visualize, or export spreadsheets and CSV/TSV files |
+| `openai-docs` | Use current official OpenAI documentation for OpenAI API or ChatGPT implementation questions |
+| `skill-creator` | Create or update Codex skills with specialized workflows or knowledge |
+| `skill-installer` | List or install Codex skills from curated sources or GitHub repos |
+| `plugin-creator` | Scaffold personal Codex plugins and marketplace metadata |
+
+### Repo-local `.claude/skills`
+
 | Skill | When to Use |
 |---|---|
-| `/flutter-integration` | Generating repository code, API models, SSE streaming, or auth flows for the Whoomz backend |
-| `/context7-mcp` | Looking up docs for Flutter, Riverpod, Dio, freezed, flutter_secure_storage, or any other package |
-| `/verify` | Confirming a fix or feature works end-to-end on the simulator or device |
-| `/run` | Starting the app and observing live behaviour |
-| `/simplify` | Refactoring changed code for clarity and efficiency after a feature is complete |
-| `/review` | Reviewing a pull request before merging |
-| `/security-review` | Auditing token storage, auth flows, or input handling |
-| `/update-config` | Changing Claude Code permissions, hooks, or harness settings |
-| `/fewer-permission-prompts` | Reducing repetitive permission prompts by allowlisting common read-only commands |
+| `flutter-code-quality` | Review Flutter/Dart code quality, SOLID principles, code smells, architecture, or low-level design |
+| `flutter-integration` | Generate Flutter client code for Whoomz API services, models, repositories, auth, and SSE streaming |
+| `run-dart` | Run Dart snippets or smoke-check Dart language features like null safety, async, streams, generics, and extensions |
+| `run-flutter-animations` | Run animation smoke tests for `AnimationController`, tweens, Hero, implicit animations, and `AnimatedBuilder` |
+| `run-flutter-integration-testing` | Write or run end-to-end Flutter integration tests on a real device or emulator |
+| `run-flutter-layouts` | Test layout behavior for `Row`, `Column`, `Stack`, `Flex`, slivers, and Flutter constraints |
+| `run-flutter-linting` | Run or configure `flutter analyze`, `dart format`, `flutter_lints`, and stricter lint rules |
+| `run-flutter-local-storage` | Add or design local storage with SharedPreferences, Hive, Isar, or persisted state |
+| `run-flutter-navigation` | Build navigation with `go_router`, shell routes, nested navigation, deep links, redirects, and typed route data |
+| `run-flutter-performance` | Test performance patterns like `compute`, `Isolate.run`, `const` widgets, `RepaintBoundary`, lazy lists, and keep-alive pages |
+| `run-flutter-platform-channels` | Test or mock `MethodChannel`, `EventChannel`, `BasicMessageChannel`, and `PlatformException` behavior |
+| `run-flutter-responsive` | Test adaptive UI with `LayoutBuilder`, `MediaQuery`, `SafeArea`, platform detection, and breakpoint switching |
+| `run-flutter-state` | Run Riverpod provider tests for `StateProvider`, `Provider`, `FutureProvider`, `StateNotifierProvider`, and `AsyncNotifier` |
+| `run-flutter-supabase` | Build Supabase auth, Realtime subscriptions, session handling, and Flutter client error handling |
+| `run-flutter-supabase-mocking` | Mock Supabase auth, PostgREST queries, Storage, and Realtime callbacks in Flutter tests |
+| `run-flutter-supabase-storage` | Implement Supabase Storage uploads, downloads, signed URLs, public URLs, and cached remote images |
+| `run-flutter-testing` | Run Flutter unit/widget tests with `flutter_test`, `WidgetTester`, finders, interactions, and mocktail |
+| `run-flutter-theming` | Test Material 3, Cupertino, dark mode, color schemes, adaptive widgets, and theme lookup |
+| `run-flutter-widgets` | Test widget tree fundamentals, lifecycle, `BuildContext`, keys, and element tree behavior |
