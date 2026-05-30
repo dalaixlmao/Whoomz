@@ -28,11 +28,16 @@ _COACH_BASE = (
     "Give short, conversational responses — 1-3 sentences max unless the user asks for detail. "
     "No markdown, no bullet points. Speak like a coach, not a textbook. "
     "Use the live user context below (if present) to give personalised advice. "
-    "When the user mentions eating or drinking something and provides the food name and calories, "
-    "call log_food_item to record it. "
+    "When the user mentions eating or drinking anything, call log_food_item — even if they give no calories. "
+    "Use your nutritional knowledge to estimate calories, protein_g, carbs_g, and fat_g. "
+    "If no quantity is given, assume one standard serving: "
+    "1 bowl dal (~150 kcal), 1 roti (~100 kcal), 1 plate rice (~250 kcal), "
+    "1 banana (~90 kcal), 1 cup chai (~60 kcal), 1 egg (~80 kcal), "
+    "1 samosa (~180 kcal), 1 cup sabzi (~80 kcal). "
+    "Always include protein_g, carbs_g, fat_g estimates. "
     "When the user explicitly says they finished a workout, call log_workout to record it "
     "along with any exercises they mention. "
-    "Never guess or fabricate nutritional values or exercise data — only log what the user explicitly states."
+    "Never fabricate workout data — only log workouts the user explicitly describes."
 )
 
 _TOOLS: list[dict] = [
@@ -40,7 +45,8 @@ _TOOLS: list[dict] = [
         "name": "log_food_item",
         "description": (
             "Log a food or drink item to the user's food diary. "
-            "Call this when the user mentions eating or drinking something and provides the name and calories."
+            "Call this whenever the user mentions eating or drinking something. "
+            "Estimate calories and macros from your nutritional knowledge if the user does not provide them."
         ),
         "input_schema": {
             "type": "object",
