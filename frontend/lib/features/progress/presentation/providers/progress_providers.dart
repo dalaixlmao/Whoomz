@@ -57,6 +57,18 @@ Future<DayProgress> _fetchDay({
   );
 }
 
+/// Food logs + workouts + AI note for yesterday.
+final yesterdayProgressProvider = FutureProvider.autoDispose<DayProgress>((ref) async {
+  final foodRepo = ref.read(foodLogRepositoryProvider);
+  final workoutRepo = ref.read(workoutRepositoryProvider);
+  final noteRepo = ref.read(dailyNoteRepositoryProvider);
+
+  final now = DateTime.now();
+  final yesterday = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
+
+  return _fetchDay(day: yesterday, foodRepo: foodRepo, workoutRepo: workoutRepo, noteRepo: noteRepo);
+});
+
 /// Weight logs for the current week → Map<'YYYY-MM-DD', weightKg>.
 /// Latest entry wins when multiple are logged on the same day.
 final weekWeightLogsProvider = FutureProvider.autoDispose<Map<String, double>>((ref) async {

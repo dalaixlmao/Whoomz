@@ -8,6 +8,8 @@ import '../../../../shared/widgets/whoosh_texture.dart';
 import '../../../../shared/widgets/w_stamp.dart';
 import '../../../../shared/widgets/streak_flame.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../progress/data/progress_models.dart';
+import '../../../progress/presentation/providers/progress_providers.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -16,9 +18,13 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authNotifierProvider).user;
     final name = user?.name ?? 'You';
-
     final now = DateTime.now();
     final greeting = now.hour < 12 ? 'Good morning' : now.hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    final yesterdayAsync = ref.watch(yesterdayProgressProvider);
+    final weekAsync = ref.watch(weekProgressProvider);
+
+    final streak = weekAsync.whenOrNull(data: _computeStreak) ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -28,12 +34,25 @@ class HomeScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTopBar(context, greeting, name),
-            _buildHeroCard(context),
-            _buildYesterdaySection(context),
+            _buildHeroCard(context, streak),
+            _buildYesterdaySection(context, yesterdayAsync),
           ],
         ),
       ),
     );
+  }
+
+  int _computeStreak(List<DayProgress> week) {
+    final today = DateTime.now();
+    final todayNorm = DateTime(today.year, today.month, today.day);
+    int streak = 0;
+    for (final day in week.reversed) {
+      final d = DateTime(day.date.year, day.date.month, day.date.day);
+      if (!d.isBefore(todayNorm)) continue;
+      if (!day.logged) break;
+      streak++;
+    }
+    return streak;
   }
 
   Widget _buildTopBar(BuildContext context, String greeting, String name) {
@@ -76,7 +95,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeroCard(BuildContext context) {
+  Widget _buildHeroCard(BuildContext context, int streak) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
       child: Container(
@@ -164,7 +183,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const StreakFlame(count: 7),
+                      if (streak > 0) StreakFlame(count: streak),
                     ],
                   ),
                 ],
@@ -176,12 +195,22 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildYesterdaySection(BuildContext context) {
-    final stats = [
-      ('kcal', '1,720'),
-      ('protein', '90g'),
-      ('steps', '7.3k'),
-    ];
+  Widget _buildYesterdaySection(BuildContext context, AsyncValue<DayProgress> yesterdayAsync) {
+    final data = yesterdayAsync.valueOrNull;
+
+    if (yesterdayAsync.hasError && data == null) return const SizedBox.shrink();
+
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    final dayLabel = _dayLabel(yesterday);
+
+    final stats = <(String, String)>[];
+    if (data != null) {
+      if (data.totalKcal > 0) stats.add(('kcal', _fmtNum(data.totalKcal)));
+      if (data.totalProteinG > 0) stats.add(('protein', '${data.totalProteinG.toStringAsFixed(0)}g'));
+      if (data.workoutCount > 0) stats.add(('workouts', '${data.workoutCount}'));
+    }
+
+    final note = data?.note;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
@@ -218,7 +247,7 @@ class HomeScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Sun · May 17',
+                        dayLabel,
                         style: GoogleFonts.bricolageGrotesque(
                           fontSize: 13, fontWeight: FontWeight.w600,
                           color: AppColors.accent, letterSpacing: 1,
@@ -228,33 +257,51 @@ class HomeScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: stats.map((s) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentWithOpacity(0.1),
-                        borderRadius: BorderRadius.circular(999),
+                  if (yesterdayAsync.isLoading && data == null)
+                    Text(
+                      '—',
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 13, color: AppColors.inkWithOpacity(0.3),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(s.$1, style: GoogleFonts.bricolageGrotesque(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.inkWithOpacity(0.5))),
-                          const SizedBox(width: 4),
-                          Text(s.$2, style: GoogleFonts.bricolageGrotesque(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.ink)),
-                        ],
+                    )
+                  else if (stats.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: stats.map((s) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentWithOpacity(0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(s.$1, style: GoogleFonts.bricolageGrotesque(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.inkWithOpacity(0.5))),
+                            const SizedBox(width: 4),
+                            Text(s.$2, style: GoogleFonts.bricolageGrotesque(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                          ],
+                        ),
+                      )).toList(),
+                    )
+                  else
+                    Text(
+                      'Nothing logged yesterday.',
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 13, color: AppColors.inkWithOpacity(0.4),
+                        fontWeight: FontWeight.w500,
                       ),
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    '"Quiet Sunday. Read, walked, ate dal. Felt like a recovery day."',
-                    style: GoogleFonts.bricolageGrotesque(
-                      fontSize: 14, color: AppColors.inkWithOpacity(0.67),
-                      fontWeight: FontWeight.w500, height: 1.4, letterSpacing: -0.1,
                     ),
-                  ),
+                  if (note != null) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      '"$note"',
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 14, color: AppColors.inkWithOpacity(0.67),
+                        fontWeight: FontWeight.w500, height: 1.4, letterSpacing: -0.1,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -262,5 +309,20 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _dayLabel(DateTime d) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${days[d.weekday - 1]} · ${months[d.month - 1]} ${d.day}';
+  }
+
+  String _fmtNum(int n) {
+    if (n >= 1000) {
+      final thousands = n ~/ 1000;
+      final remainder = n % 1000;
+      return '$thousands,${remainder.toString().padLeft(3, '0')}';
+    }
+    return '$n';
   }
 }
