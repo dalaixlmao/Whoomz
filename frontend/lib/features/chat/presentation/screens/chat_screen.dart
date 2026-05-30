@@ -204,7 +204,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               decoration: BoxDecoration(
                 color: AppColors.bubbleAI,
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: AppColors.inkWithOpacity(0.15), width: 1.5),
+                border: Border.all(color: AppColors.inkWithOpacity(0.3), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.inkWithOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: TextField(
                 controller: _ctrl,
