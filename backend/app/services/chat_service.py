@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from datetime import date, timezone
+from datetime import date, datetime, timezone
 from typing import AsyncIterator
 
 import anthropic
@@ -11,20 +11,107 @@ from supabase import Client
 
 from app.config import settings
 from app.schemas.chat import Message
+from app.schemas.food_log import FoodLogCreate
+from app.schemas.workout import WorkoutCreate
+from app.schemas.workout_exercise import WorkoutExerciseCreate
+from app.services import food_log_service, workout_service
 
 logger = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
 MAX_HISTORY = 20
-MAX_TOKENS = 512
+MAX_TOKENS = 1024
 
 _COACH_BASE = (
     "You are Whoomz, a friendly and motivating fitness coach AI. "
     "The user is tracking calories, workouts, and body weight. "
     "Give short, conversational responses — 1-3 sentences max unless the user asks for detail. "
     "No markdown, no bullet points. Speak like a coach, not a textbook. "
-    "Use the live user context below (if present) to give personalised advice."
+    "Use the live user context below (if present) to give personalised advice. "
+    "When the user mentions eating or drinking something and provides the food name and calories, "
+    "call log_food_item to record it. "
+    "When the user explicitly says they finished a workout, call log_workout to record it "
+    "along with any exercises they mention. "
+    "Never guess or fabricate nutritional values or exercise data — only log what the user explicitly states."
 )
+
+_TOOLS: list[dict] = [
+    {
+        "name": "log_food_item",
+        "description": (
+            "Log a food or drink item to the user's food diary. "
+            "Call this when the user mentions eating or drinking something and provides the name and calories."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Food or drink name"},
+                "calories": {"type": "integer", "description": "Calories in kcal"},
+                "meal_type": {
+                    "type": "string",
+                    "enum": ["breakfast", "lunch", "dinner", "snack"],
+                    "description": "Meal category",
+                },
+                "protein_g": {"type": "number", "description": "Protein in grams"},
+                "carbs_g": {"type": "number", "description": "Carbohydrates in grams"},
+                "fat_g": {"type": "number", "description": "Fat in grams"},
+            },
+            "required": ["name", "calories", "meal_type"],
+        },
+    },
+    {
+        "name": "log_workout",
+        "description": (
+            "Log a completed workout session with exercises. "
+            "Call this when the user says they finished a workout."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Workout name, e.g. 'Leg Day', 'Morning Run'"},
+                "notes": {"type": "string", "description": "Optional notes about the session"},
+                "started_at": {
+                    "type": "string",
+                    "description": "ISO 8601 datetime when the workout started. Use current time if unknown.",
+                },
+                "exercises": {
+                    "type": "array",
+                    "description": "Exercises performed during the workout",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "exercise_name": {"type": "string"},
+                            "tracking_type": {
+                                "type": "string",
+                                "enum": [
+                                    "sets_reps_weight",
+                                    "distance_duration",
+                                    "laps",
+                                    "duration_only",
+                                    "freeform",
+                                ],
+                            },
+                            "metrics": {
+                                "type": "object",
+                                "description": (
+                                    "sets_reps_weight: {sets:[{set_number,reps,weight_kg}]}. "
+                                    "distance_duration: {distance_km,duration_seconds}. "
+                                    "laps: {laps:[{lap_number,lap_time_seconds}]}. "
+                                    "duration_only: {duration_seconds}. "
+                                    "freeform: {}"
+                                ),
+                            },
+                            "order": {"type": "integer", "description": "1-based display order"},
+                            "notes": {"type": "string"},
+                        },
+                        "required": ["exercise_name", "tracking_type", "metrics", "order"],
+                    },
+                },
+            },
+            "required": ["name", "exercises"],
+        },
+    },
+]
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[.!?])$")
 
@@ -126,6 +213,77 @@ def _fetch_user_context(user_id: str, supabase: Client) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool execution helpers
+# ---------------------------------------------------------------------------
+
+
+def _content_to_dicts(content: list) -> list[dict]:
+    result = []
+    for block in content:
+        if block.type == "text":
+            result.append({"type": "text", "text": block.text})
+        elif block.type == "tool_use":
+            result.append({"type": "tool_use", "id": block.id, "name": block.name, "input": block.input})
+    return result
+
+
+async def _run_log_food(tool_input: dict, user_id: str, supabase: Client) -> tuple[str, str]:
+    try:
+        data = FoodLogCreate(**tool_input)
+        log = await food_log_service.create(user_id, data, supabase)
+        return (
+            _sse({"action": "food_logged", "data": log.model_dump(mode="json")}),
+            f"Logged: {log.name}, {log.calories} kcal ({log.meal_type})",
+        )
+    except Exception as exc:
+        logger.warning("log_food_item tool failed: %s", exc)
+        return _sse({"action": "log_failed", "tool": "log_food_item"}), f"Failed to log food: {exc}"
+
+
+async def _run_log_workout(tool_input: dict, user_id: str, supabase: Client) -> tuple[str, str]:
+    try:
+        exercises_raw: list[dict] = tool_input.get("exercises", [])
+        started_at_raw = tool_input.get("started_at") or datetime.now(timezone.utc).isoformat()
+        workout_data = WorkoutCreate(
+            name=tool_input["name"],
+            notes=tool_input.get("notes"),
+            started_at=started_at_raw,
+        )
+        workout = await workout_service.create_workout(user_id, workout_data, supabase)
+
+        exercises = []
+        for i, ex in enumerate(exercises_raw):
+            ex_data = WorkoutExerciseCreate(
+                exercise_name=ex["exercise_name"],
+                tracking_type=ex["tracking_type"],
+                metrics=ex.get("metrics", {}),
+                order=ex.get("order", i + 1),
+                notes=ex.get("notes"),
+            )
+            exercise = await workout_service.add_exercise(str(workout.id), user_id, ex_data, supabase)
+            exercises.append(exercise.model_dump(mode="json"))
+
+        payload = workout.model_dump(mode="json")
+        payload["exercises"] = exercises
+        return (
+            _sse({"action": "workout_logged", "data": payload}),
+            f"Logged workout '{workout.name}' with {len(exercises)} exercise(s)",
+        )
+    except Exception as exc:
+        logger.warning("log_workout tool failed: %s", exc)
+        return _sse({"action": "log_failed", "tool": "log_workout"}), f"Failed to log workout: {exc}"
+
+
+async def _execute_tool(name: str, tool_input: dict, user_id: str, supabase: Client) -> tuple[str, str]:
+    if name == "log_food_item":
+        return await _run_log_food(tool_input, user_id, supabase)
+    if name == "log_workout":
+        return await _run_log_workout(tool_input, user_id, supabase)
+    logger.warning("Unknown tool called by model: %s", name)
+    return _sse({"action": "unknown_tool", "tool": name}), "Unknown tool"
+
+
+# ---------------------------------------------------------------------------
 # Public service function
 # ---------------------------------------------------------------------------
 
@@ -139,8 +297,11 @@ async def chat(
     """Stream SSE events for a chat turn with live user context.
 
     Yields:
-        ``data: {"text": "<sentence>"}\\n\\n``  — one per sentence boundary
-        ``data: {"done": true}\\n\\n``           — terminal event
+        ``data: {"text": "<sentence>"}\\n\\n``                     — streamed text
+        ``data: {"action": "food_logged", "data": {...}}\\n\\n``   — food stored
+        ``data: {"action": "workout_logged", "data": {...}}\\n\\n`` — workout stored
+        ``data: {"action": "log_failed", "tool": "..."}\\n\\n``    — storage error
+        ``data: {"done": true}\\n\\n``                             — terminal event
     """
     messages = _get_or_create_session(session_id, user_id)
     messages.append(Message(role="user", content=message))
@@ -148,11 +309,10 @@ async def chat(
 
     live_context = _fetch_user_context(user_id, supabase)
     system_prompt = f"{_COACH_BASE}\n\nLive user context:\n{live_context}"
-
     api_messages = [{"role": m.role, "content": m.content} for m in messages]
 
-    sentence_buffer = ""
     yielded: list[str] = []
+    sentence_buffer = ""
 
     try:
         async with _anthropic.messages.stream(
@@ -160,6 +320,7 @@ async def chat(
             max_tokens=MAX_TOKENS,
             system=system_prompt,
             messages=api_messages,
+            tools=_TOOLS,
         ) as stream:
             async for token in stream.text_stream:
                 sentence_buffer += token
@@ -171,6 +332,52 @@ async def chat(
                         yielded.append(sentence)
                     sentence_buffer = parts[0] if parts else ""
 
+            if remainder := sentence_buffer.strip():
+                yield _sse({"text": remainder})
+                yielded.append(remainder)
+
+            final_msg = await stream.get_final_message()
+
+        if final_msg.stop_reason == "tool_use":
+            tool_results = []
+            for block in final_msg.content:
+                if block.type == "tool_use":
+                    action_sse, result_content = await _execute_tool(
+                        block.name, block.input, user_id, supabase
+                    )
+                    yield action_sse
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_content,
+                    })
+
+            followup_messages = api_messages + [
+                {"role": "assistant", "content": _content_to_dicts(final_msg.content)},
+                {"role": "user", "content": tool_results},
+            ]
+
+            sentence_buffer = ""
+            async with _anthropic.messages.stream(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=system_prompt,
+                messages=followup_messages,
+            ) as stream2:
+                async for token in stream2.text_stream:
+                    sentence_buffer += token
+                    parts = _SENTENCE_END.split(sentence_buffer)
+                    while len(parts) > 1:
+                        sentence = parts.pop(0).strip()
+                        if sentence:
+                            yield _sse({"text": sentence})
+                            yielded.append(sentence)
+                        sentence_buffer = parts[0] if parts else ""
+
+            if remainder := sentence_buffer.strip():
+                yield _sse({"text": remainder})
+                yielded.append(remainder)
+
     except anthropic.APIStatusError as exc:
         logger.error("Anthropic API error %s: %s", exc.status_code, exc.message)
         yield _sse({"error": "AI service error, please try again."})
@@ -181,10 +388,6 @@ async def chat(
         yield _sse({"error": "Could not reach AI service, please try again."})
         yield _SSE_DONE
         return
-
-    if remainder := sentence_buffer.strip():
-        yield _sse({"text": remainder})
-        yielded.append(remainder)
 
     if assistant_reply := " ".join(yielded):
         messages.append(Message(role="assistant", content=assistant_reply))
