@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.dependencies import get_supabase
+from app.dependencies import get_supabase_admin
 from app.routers import auth, chat, daily_notes, food_logs, health, scheduler, voice, weight_logs, workouts
 from app.services.scheduler_service import run_daily_notes_job
 
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(
         run_daily_notes_job,
         CronTrigger.from_crontab(settings.daily_notes_cron, timezone="Asia/Kolkata"),
-        args=[get_supabase()],
+        args=[get_supabase_admin()],
     )
     _scheduler.start()
     logger.info("Scheduler started — daily notes cron: %s (Asia/Kolkata)", settings.daily_notes_cron)

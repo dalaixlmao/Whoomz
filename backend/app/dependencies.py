@@ -19,6 +19,11 @@ def get_supabase() -> Client:
     return create_client(settings.supabase_url, settings.supabase_key)
 
 
+def get_supabase_admin() -> Client:
+    """Service role client — bypasses RLS. Use only for server-side jobs, never for user requests."""
+    return create_client(settings.supabase_url, settings.supabase_service_key)
+
+
 SupabaseClient = Annotated[Client, Depends(get_supabase)]
 
 

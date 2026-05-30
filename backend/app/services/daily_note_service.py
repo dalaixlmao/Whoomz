@@ -22,7 +22,7 @@ async def get_by_date(user_id: str, date_str: str, supabase: Client) -> DailyNot
             detail="Could not fetch daily note",
         ) from exc
 
-    if not result.data:
+    if not result or not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No note for this date")
 
     return DailyNoteResponse(**result.data)
@@ -38,7 +38,7 @@ async def insert(user_id: str, date_str: str, note: str, supabase: Client) -> Da
         .maybe_single()
         .execute()
     )
-    if existing.data:
+    if existing and existing.data:
         return None
 
     result = supabase.table(TABLE).insert({
