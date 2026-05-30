@@ -8,6 +8,9 @@ import '../features/workouts/data/workout_repository.dart';
 import '../features/chat/data/chat_repository.dart';
 import '../features/voice/data/voice_repository.dart';
 
+export '../features/food_logs/presentation/providers/food_log_notifier.dart';
+export '../features/workouts/presentation/providers/workout_notifier.dart';
+
 final tokenStorageProvider = Provider<TokenStorage>((_) => TokenStorage());
 final apiClientProvider = Provider<Dio>((_) => ApiClient.dio);
 

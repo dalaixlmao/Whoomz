@@ -140,6 +140,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         final msg = state.messages[i];
         if (msg.role == 'user') return UserBubble(text: msg.text);
+        if (msg.role == 'error') {
+          return Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEDED),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0xFFFFB3B3)),
+              ),
+              child: Text(
+                msg.text,
+                style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFFCC3333)),
+              ),
+            ),
+          );
+        }
         if (msg.role == 'done') {
           return Center(
             child: Column(

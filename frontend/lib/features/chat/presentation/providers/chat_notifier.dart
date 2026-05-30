@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/providers.dart';
+import '../../../food_logs/data/food_log_models.dart';
+import '../../../workouts/data/workout_models.dart';
 
 class ChatMessage {
   const ChatMessage({required this.role, required this.text, this.nutrition});
@@ -67,8 +69,14 @@ class ChatNotifier extends Notifier<ChatState> {
       await for (final chunk in stream) {
         final json = jsonDecode(chunk) as Map<String, dynamic>;
         if (json['done'] == true) break;
-        buffer.write((json['text'] as String?) ?? '');
 
+        final action = json['action'] as String?;
+        if (action != null) {
+          _handleAction(action, json['data'] as Map<String, dynamic>?);
+          continue;
+        }
+
+        buffer.write((json['text'] as String?) ?? '');
         final updated = List<ChatMessage>.from(state.messages);
         updated[updated.length - 1] = ChatMessage(role: 'ai', text: buffer.toString());
         state = state.copyWith(messages: updated);
@@ -98,6 +106,26 @@ class ChatNotifier extends Notifier<ChatState> {
       sessionId: const Uuid().v4(),
       messages: [ChatMessage(role: 'ai', text: greeting)],
     );
+  }
+
+  void _handleAction(String action, Map<String, dynamic>? data) {
+    switch (action) {
+      case 'food_logged':
+        if (data != null) {
+          ref.read(foodLogNotifierProvider.notifier).addItem(FoodLogResponse.fromJson(data));
+        }
+      case 'workout_logged':
+        if (data != null) {
+          ref.read(workoutNotifierProvider.notifier).addItem(WorkoutDetailResponse.fromJson(data));
+        }
+      case 'log_failed':
+        final msgs = List<ChatMessage>.from(state.messages);
+        msgs.insert(
+          msgs.length - 1,
+          const ChatMessage(role: 'error', text: "Couldn't save to your log."),
+        );
+        state = state.copyWith(messages: msgs);
+    }
   }
 
   NutritionData? _parseNutrition(String raw) {
