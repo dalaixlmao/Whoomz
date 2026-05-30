@@ -4,7 +4,7 @@ import '../auth/token_storage.dart';
 class ApiClient {
   static const _baseUrl = String.fromEnvironment(
     'BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
+    defaultValue: 'http://localhost:8000/api/v1',
   );
 
   static final _tokenStorage = TokenStorage();
@@ -12,34 +12,38 @@ class ApiClient {
   static final Dio dio = _buildDio();
 
   static Dio _buildDio() {
-    final dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 30),
-      headers: {'Content-Type': 'application/json'},
-    ));
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: _baseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {'Content-Type': 'application/json'},
+      ),
+    );
 
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        final token = await _tokenStorage.readAccessToken();
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer $token';
-        }
-        handler.next(options);
-      },
-      onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
-          final refreshed = await _tryRefresh();
-          if (refreshed) {
-            final token = await _tokenStorage.readAccessToken();
-            error.requestOptions.headers['Authorization'] = 'Bearer $token';
-            final retry = await dio.fetch(error.requestOptions);
-            return handler.resolve(retry);
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await _tokenStorage.readAccessToken();
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
           }
-        }
-        handler.next(error);
-      },
-    ));
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          if (error.response?.statusCode == 401) {
+            final refreshed = await _tryRefresh();
+            if (refreshed) {
+              final token = await _tokenStorage.readAccessToken();
+              error.requestOptions.headers['Authorization'] = 'Bearer $token';
+              final retry = await dio.fetch(error.requestOptions);
+              return handler.resolve(retry);
+            }
+          }
+          handler.next(error);
+        },
+      ),
+    );
 
     return dio;
   }
