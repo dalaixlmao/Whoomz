@@ -30,6 +30,7 @@ async def chat(
         session_id=body.session_id,
         message=body.message,
         supabase=supabase,
+        token=user["token"],
     )
 
     return StreamingResponse(

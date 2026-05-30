@@ -12,6 +12,7 @@ _bearer = HTTPBearer()
 class AuthUser(TypedDict):
     id: str
     email: str
+    token: str
 
 
 def get_supabase() -> Client:
@@ -28,7 +29,7 @@ async def get_current_user(
     token = credentials.credentials
     try:
         response = supabase.auth.get_user(token)
-        return AuthUser(id=response.user.id, email=response.user.email or "")
+        return AuthUser(id=response.user.id, email=response.user.email or "", token=token)
     except HTTPException:
         raise
     except Exception:

@@ -236,7 +236,7 @@ async def _run_log_food(tool_input: dict, user_id: str, supabase: Client) -> tup
             f"Logged: {log.name}, {log.calories} kcal ({log.meal_type})",
         )
     except Exception as exc:
-        logger.warning("log_food_item tool failed: %s", exc)
+        logger.warning("log_food_item tool failed: %s", exc, exc_info=True)
         return _sse({"action": "log_failed", "tool": "log_food_item"}), f"Failed to log food: {exc}"
 
 
@@ -293,6 +293,7 @@ async def chat(
     session_id: str,
     message: str,
     supabase: Client,
+    token: str,
 ) -> AsyncIterator[str]:
     """Stream SSE events for a chat turn with live user context.
 
@@ -303,6 +304,8 @@ async def chat(
         ``data: {"action": "log_failed", "tool": "..."}\\n\\n``    — storage error
         ``data: {"done": true}\\n\\n``                             — terminal event
     """
+    supabase.postgrest.auth(token)
+
     messages = _get_or_create_session(session_id, user_id)
     messages.append(Message(role="user", content=message))
     _trim(messages)
@@ -339,9 +342,11 @@ async def chat(
             final_msg = await stream.get_final_message()
 
         if final_msg.stop_reason == "tool_use":
+            logger.info("Tool use triggered. Final message content: %s", final_msg.content)
             tool_results = []
             for block in final_msg.content:
                 if block.type == "tool_use":
+                    logger.info("Tool call — name: %s, input: %s", block.name, block.input)
                     action_sse, result_content = await _execute_tool(
                         block.name, block.input, user_id, supabase
                     )
