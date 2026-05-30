@@ -4,4 +4,6 @@ class ApiEndpoints {
   static const workouts = '/workouts';
   static const chat = '/chat';
   static const voice = '/voice';
+  static const weightLogs = '/weight-logs';
+  static const dailyNotes = '/daily-notes';
 }

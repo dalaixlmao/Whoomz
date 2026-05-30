@@ -7,6 +7,8 @@ import '../features/food_logs/data/food_log_repository.dart';
 import '../features/workouts/data/workout_repository.dart';
 import '../features/chat/data/chat_repository.dart';
 import '../features/voice/data/voice_repository.dart';
+import '../features/progress/data/weight_log_repository.dart';
+import '../features/progress/data/daily_note_repository.dart';
 
 export '../features/food_logs/presentation/providers/food_log_notifier.dart';
 export '../features/workouts/presentation/providers/workout_notifier.dart';
@@ -19,3 +21,5 @@ final foodLogRepositoryProvider = Provider<FoodLogRepository>((_) => FoodLogRepo
 final workoutRepositoryProvider = Provider<WorkoutRepository>((_) => WorkoutRepository());
 final chatRepositoryProvider = Provider<ChatRepository>((_) => ChatRepository());
 final voiceRepositoryProvider = Provider<VoiceRepository>((_) => VoiceRepository());
+final weightLogRepositoryProvider = Provider<WeightLogRepository>((_) => WeightLogRepository());
+final dailyNoteRepositoryProvider = Provider<DailyNoteRepository>((_) => DailyNoteRepository());

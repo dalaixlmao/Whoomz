@@ -11,18 +11,37 @@ class WeightChart extends StatelessWidget {
     this.accent = AppColors.accent,
   });
 
-  final List<double> data;
+  final List<double?> data;
   final double goal;
   final Color accent;
 
   @override
   Widget build(BuildContext context) {
+    final nonNull = data.whereType<double>().toList();
+
+    if (nonNull.isEmpty) {
+      return SizedBox(
+        height: 100,
+        child: Center(
+          child: Text(
+            'No weight logged yet',
+            style: GoogleFonts.bricolageGrotesque(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.inkWithOpacity(0.35),
+            ),
+          ),
+        ),
+      );
+    }
+
     final spots = data.asMap().entries
-        .map((e) => FlSpot(e.key.toDouble(), e.value))
+        .where((e) => e.value != null)
+        .map((e) => FlSpot(e.key.toDouble(), e.value!))
         .toList();
 
-    final minY = ([...data, goal].reduce((a, b) => a < b ? a : b) - 0.5).floorToDouble();
-    final maxY = ([...data, goal].reduce((a, b) => a > b ? a : b) + 0.5).ceilToDouble();
+    final minY = ([...nonNull, goal].reduce((a, b) => a < b ? a : b) - 0.5).floorToDouble();
+    final maxY = ([...nonNull, goal].reduce((a, b) => a > b ? a : b) + 0.5).ceilToDouble();
 
     return SizedBox(
       height: 100,
@@ -83,9 +102,9 @@ class WeightChart extends StatelessWidget {
               dotData: FlDotData(
                 show: true,
                 getDotPainter: (spot, _, barData, index) => FlDotCirclePainter(
-                  radius: index == data.length - 1 ? 4 : 2.5,
+                  radius: index == spots.length - 1 ? 4 : 2.5,
                   color: accent,
-                  strokeWidth: index == data.length - 1 ? 2 : 1.5,
+                  strokeWidth: index == spots.length - 1 ? 2 : 1.5,
                   strokeColor: Colors.white,
                 ),
               ),
