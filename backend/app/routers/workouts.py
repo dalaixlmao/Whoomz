@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Query, status
 
-from app.dependencies import CurrentUser, SupabaseClient
+from app.dependencies import CurrentUser, UserSupabaseClient
 from app.schemas.workout import WorkoutCreate, WorkoutDetailResponse, WorkoutResponse, WorkoutUpdate
 from app.schemas.workout_exercise import (
     WorkoutExerciseCreate,
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/workouts", tags=["workouts"])
 async def create_workout(
     body: WorkoutCreate,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> WorkoutResponse:
     return await workout_service.create_workout(user["id"], body, supabase)
 
@@ -31,7 +31,7 @@ async def create_workout(
 @router.get("/")
 async def list_workouts(
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
     workout_date: date | None = Query(None, alias="date", description="Filter by date (YYYY-MM-DD)"),
 ) -> list[WorkoutResponse]:
     return await workout_service.list_workouts(user["id"], supabase, workout_date)
@@ -41,7 +41,7 @@ async def list_workouts(
 async def get_workout(
     workout_id: str,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> WorkoutDetailResponse:
     return await workout_service.get_workout_detail(workout_id, user["id"], supabase)
 
@@ -51,7 +51,7 @@ async def update_workout(
     workout_id: str,
     body: WorkoutUpdate,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> WorkoutResponse:
     return await workout_service.update_workout(workout_id, user["id"], body, supabase)
 
@@ -60,7 +60,7 @@ async def update_workout(
 async def delete_workout(
     workout_id: str,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> None:
     await workout_service.delete_workout(workout_id, user["id"], supabase)
 
@@ -75,7 +75,7 @@ async def add_exercise(
     workout_id: str,
     body: WorkoutExerciseCreate,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> WorkoutExerciseResponse:
     return await workout_service.add_exercise(workout_id, user["id"], body, supabase)
 
@@ -86,7 +86,7 @@ async def update_exercise(
     exercise_id: str,
     body: WorkoutExerciseUpdate,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> WorkoutExerciseResponse:
     return await workout_service.update_exercise(workout_id, exercise_id, user["id"], body, supabase)
 
@@ -96,6 +96,6 @@ async def delete_exercise(
     workout_id: str,
     exercise_id: str,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> None:
     await workout_service.delete_exercise(workout_id, exercise_id, user["id"], supabase)

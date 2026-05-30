@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from app.dependencies import CurrentUser, SupabaseClient
+from app.dependencies import CurrentUser, UserSupabaseClient
 from app.schemas.chat import ChatRequest
 from app.services import chat_service
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def chat(
     body: ChatRequest,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> StreamingResponse:
     try:
         chat_service.validate_session(session_id=body.session_id, user_id=user["id"])

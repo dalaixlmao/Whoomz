@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Query, status
 
-from app.dependencies import CurrentUser, SupabaseClient
+from app.dependencies import CurrentUser, UserSupabaseClient
 from app.schemas.weight_log import WeightLogCreate, WeightLogResponse
 from app.services import weight_log_service
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/weight-logs", tags=["weight-logs"])
 async def create_weight_log(
     body: WeightLogCreate,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> WeightLogResponse:
     return await weight_log_service.create(user["id"], body, supabase)
 
@@ -21,7 +21,7 @@ async def create_weight_log(
 @router.get("/")
 async def list_weight_logs(
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
     start_date: date = Query(..., description="Range start date (YYYY-MM-DD)"),
     end_date: date = Query(..., description="Range end date (YYYY-MM-DD)"),
 ) -> list[WeightLogResponse]:
@@ -32,6 +32,6 @@ async def list_weight_logs(
 async def delete_weight_log(
     log_id: str,
     user: CurrentUser,
-    supabase: SupabaseClient,
+    supabase: UserSupabaseClient,
 ) -> None:
     await weight_log_service.delete(user["id"], log_id, supabase)

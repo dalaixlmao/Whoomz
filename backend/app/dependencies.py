@@ -27,6 +27,17 @@ def get_supabase_admin() -> Client:
 SupabaseClient = Annotated[Client, Depends(get_supabase)]
 
 
+def get_user_supabase(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> Client:
+    client = create_client(settings.supabase_url, settings.supabase_key)
+    client.postgrest.auth(credentials.credentials)
+    return client
+
+
+UserSupabaseClient = Annotated[Client, Depends(get_user_supabase)]
+
+
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
     supabase: SupabaseClient,
