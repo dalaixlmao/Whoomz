@@ -1,37 +1,9 @@
 from fastapi import HTTPException, status
 from supabase import Client
 
-from app.schemas.daily_note import DailyNoteResponse, DailyNoteUpsert
+from app.schemas.daily_note import DailyNoteResponse
 
 TABLE = "daily_notes"
-
-
-async def upsert(user_id: str, date_str: str, data: DailyNoteUpsert, supabase: Client) -> DailyNoteResponse:
-    payload = {
-        "user_id": user_id,
-        "date": date_str,
-        "note": data.note,
-    }
-
-    try:
-        result = (
-            supabase.table(TABLE)
-            .upsert(payload, on_conflict="user_id,date")
-            .execute()
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not save daily note",
-        ) from exc
-
-    if not result.data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not save daily note",
-        )
-
-    return DailyNoteResponse(**result.data[0])
 
 
 async def get_by_date(user_id: str, date_str: str, supabase: Client) -> DailyNoteResponse:
@@ -54,3 +26,28 @@ async def get_by_date(user_id: str, date_str: str, supabase: Client) -> DailyNot
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No note for this date")
 
     return DailyNoteResponse(**result.data)
+
+
+async def insert(user_id: str, date_str: str, note: str, supabase: Client) -> DailyNoteResponse | None:
+    """Insert a note for a user+date. Returns None if a note already exists (skip silently)."""
+    existing = (
+        supabase.table(TABLE)
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("date", date_str)
+        .maybe_single()
+        .execute()
+    )
+    if existing.data:
+        return None
+
+    result = supabase.table(TABLE).insert({
+        "user_id": user_id,
+        "date": date_str,
+        "note": note,
+    }).execute()
+
+    if not result.data:
+        return None
+
+    return DailyNoteResponse(**result.data[0])

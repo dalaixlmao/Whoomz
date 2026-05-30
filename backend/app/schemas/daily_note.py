@@ -1,13 +1,7 @@
 from datetime import date
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
-
-
-class DailyNoteUpsert(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    note: str
+from pydantic import BaseModel
 
 
 class DailyNoteResponse(BaseModel):

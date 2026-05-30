@@ -8,6 +8,7 @@ import anthropic
 from supabase import Client
 
 from app.config import settings
+from app.services import daily_note_service
 
 logger = logging.getLogger(__name__)
 
@@ -170,10 +171,10 @@ async def run_daily_notes_job(supabase: Client) -> dict:
 
             note = await _generate_note(context_lines)
 
-            supabase.table("daily_notes").upsert(
-                {"user_id": user_id, "date": str(yesterday), "note": note},
-                on_conflict="user_id,date",
-            ).execute()
+            inserted = await daily_note_service.insert(user_id, str(yesterday), note, supabase)
+            if inserted is None:
+                logger.info("Note already exists for user %s on %s — skipped", user_id, yesterday)
+                continue
 
             processed += 1
             logger.info("Generated note for user %s: %s", user_id, note)
