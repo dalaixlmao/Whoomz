@@ -23,6 +23,13 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   static const _goal = 64.0;
 
   @override
+  void initState() {
+    super.initState();
+    final wd = DateTime.now().weekday; // 1=Mon … 7=Sun
+    _expandedDay = wd - 1;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final progressAsync = ref.watch(weekProgressProvider);
     final weightsAsync = ref.watch(weekWeightLogsProvider);
@@ -123,6 +130,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   }
 
   Widget _buildWeekGrid(List<DayProgress> week) {
+    final todayDate = DateTime.now();
+    final today = DateTime(todayDate.year, todayDate.month, todayDate.day);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
       child: Container(
@@ -140,25 +150,33 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             Row(
               children: List.generate(7, (i) {
                 final day = week[i];
-                final active = day.logged;
-                final expanded = _expandedDay == i;
+                final dayDate = DateTime(day.date.year, day.date.month, day.date.day);
+                final isFuture = dayDate.isAfter(today);
+                final isLogged = day.logged;
+                final isSelected = _expandedDay == i;
+
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(
-                        () => _expandedDay = expanded ? null : i),
+                    onTap: isFuture
+                        ? null
+                        : () => setState(() => _expandedDay = isSelected ? null : i),
                     child: Container(
                       margin: EdgeInsets.only(right: i < 6 ? 7 : 0),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: active ? AppColors.accent : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.accent
+                            : isLogged
+                                ? AppColors.accentWithOpacity(0.12)
+                                : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        border: active
+                        border: isSelected || isLogged
                             ? null
                             : Border.all(
-                                color: AppColors.inkWithOpacity(0.25),
+                                color: AppColors.inkWithOpacity(isFuture ? 0.12 : 0.25),
                                 width: 1.5,
                               ),
-                        boxShadow: active
+                        boxShadow: isSelected
                             ? [
                                 BoxShadow(
                                   color: AppColors.accentWithOpacity(0.4),
@@ -175,9 +193,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                               style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: active
+                                color: isSelected
                                     ? Colors.white.withValues(alpha: 0.75)
-                                    : AppColors.inkWithOpacity(0.55),
+                                    : isFuture
+                                        ? AppColors.inkWithOpacity(0.25)
+                                        : AppColors.inkWithOpacity(0.55),
                                 letterSpacing: 0.4,
                               )),
                           const SizedBox(height: 1),
@@ -185,16 +205,20 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                               style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: active
+                                color: isSelected
                                     ? Colors.white
-                                    : AppColors.inkWithOpacity(0.55),
+                                    : isFuture
+                                        ? AppColors.inkWithOpacity(0.25)
+                                        : AppColors.ink,
                                 letterSpacing: -0.2,
                               )),
-                          if (active) ...[
+                          if (isLogged) ...[
                             const SizedBox(height: 4),
                             WMark(
                                 size: 11,
-                                color: Colors.white.withValues(alpha: 0.9)),
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.9)
+                                    : AppColors.accentWithOpacity(0.7)),
                           ],
                         ],
                       ),
