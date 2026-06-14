@@ -16,9 +16,7 @@ class AuthRepository {
       'email': email,
       'password': password,
     });
-    final auth = AuthResponse.fromJson(res.data as Map<String, dynamic>);
-    await _persist(auth);
-    return auth;
+    return AuthResponse.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<AuthResponse> login({
@@ -29,9 +27,7 @@ class AuthRepository {
       'email': email,
       'password': password,
     });
-    final auth = AuthResponse.fromJson(res.data as Map<String, dynamic>);
-    await _persist(auth);
-    return auth;
+    return AuthResponse.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<void> logout() async {
@@ -51,5 +47,6 @@ class AuthRepository {
   Future<void> _persist(AuthResponse auth) => _storage.persist(
         accessToken: auth.accessToken,
         refreshToken: auth.refreshToken,
+        rememberMe: !TokenStorage.sessionOnly,
       );
 }

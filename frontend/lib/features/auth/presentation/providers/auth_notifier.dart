@@ -39,6 +39,7 @@ class AuthState {
 class AuthNotifier extends Notifier<AuthState> {
   static const _onboardedKey = 'whoomz.onboarded';
   static const _userNameKey = 'whoomz.userName';
+  static const _rememberMeKey = 'whoomz.rememberMe';
 
   @override
   AuthState build() {
@@ -81,11 +82,15 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  Future<bool> login({
+    required String email,
+    required String password,
+    bool rememberMe = true,
+  }) async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final res = await _repo.login(email: email, password: password);
-      await _persistUser(res);
+      await _persistUser(res, rememberMe: rememberMe);
       return true;
     } on DioException catch (e) {
       final data = e.response?.data;
@@ -102,9 +107,15 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(status: AuthStatus.unauthenticated, clearError: true);
   }
 
-  Future<void> _persistUser(AuthResponse res) async {
+  Future<void> _persistUser(AuthResponse res, {bool rememberMe = true}) async {
+    await _storage.persist(
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+      rememberMe: rememberMe,
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_userNameKey, res.user.name ?? 'You');
+    await prefs.setBool(_rememberMeKey, rememberMe);
     state = state.copyWith(
       status: AuthStatus.authenticated,
       user: res.user,

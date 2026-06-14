@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/whoomz_wordmark.dart';
 import '../../../../shared/widgets/whoosh_texture.dart';
@@ -21,12 +22,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _emailCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
   bool _showPw = false;
+  bool _rememberMe = true;
   final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
     _mode = widget.mode;
+    SharedPreferences.getInstance().then((prefs) {
+      final saved = prefs.getBool('whoomz.rememberMe');
+      if (saved != null && mounted) setState(() => _rememberMe = saved);
+    });
   }
 
   @override
@@ -53,6 +59,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       ok = await notifier.login(
         email: _emailCtrl.text.trim(),
         password: _pwCtrl.text,
+        rememberMe: _rememberMe,
       );
     }
     if (ok && mounted) {
@@ -190,6 +197,35 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             ),
                             validator: (v) => (v?.length ?? 0) < 6 ? 'At least 6 characters' : null,
                           ),
+
+                          if (!_isSignup) ...[
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (v) => setState(() => _rememberMe = v ?? true),
+                                    activeColor: AppColors.accent,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                    side: BorderSide(color: AppColors.inkWithOpacity(0.3)),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                GestureDetector(
+                                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                                  child: Text(
+                                    'Remember me',
+                                    style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.inkWithOpacity(0.7)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
 
                           if (authState.error != null) ...[
                             const SizedBox(height: 10),
