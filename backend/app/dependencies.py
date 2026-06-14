@@ -2,6 +2,8 @@ from typing import Annotated, TypedDict
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google import genai as google_genai
+from openai import AsyncOpenAI
 from supabase import Client, create_client
 
 from app.config import settings
@@ -57,3 +59,17 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
+
+
+def get_openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.openai_api_key)
+
+
+OpenAIClient = Annotated[AsyncOpenAI, Depends(get_openai_client)]
+
+
+def get_gemini_client() -> google_genai.Client:
+    return google_genai.Client(api_key=settings.gemini_api_key)
+
+
+GeminiClient = Annotated[google_genai.Client, Depends(get_gemini_client)]

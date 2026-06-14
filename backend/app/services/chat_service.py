@@ -1,4 +1,4 @@
-"""Fitness coach chat service — Anthropic streaming with live Supabase context."""
+"""Fitness coach chat service — Gemini streaming with live Supabase context."""
 
 import json
 import logging
@@ -6,7 +6,8 @@ import re
 from datetime import date, datetime, timezone
 from typing import AsyncIterator
 
-import anthropic
+from google import genai as google_genai
+from google.genai import types as genai_types
 from supabase import Client
 
 from app.config import settings
@@ -18,7 +19,7 @@ from app.services import food_log_service, workout_service
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "gemini-2.5-flash"
 MAX_HISTORY = 20
 MAX_TOKENS = 1024
 
@@ -40,88 +41,83 @@ _COACH_BASE = (
     "Never fabricate workout data — only log workouts the user explicitly describes."
 )
 
-_TOOLS: list[dict] = [
-    {
-        "name": "log_food_item",
-        "description": (
-            "Log a food or drink item to the user's food diary. "
-            "Call this whenever the user mentions eating or drinking something. "
-            "Estimate calories and macros from your nutritional knowledge if the user does not provide them."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Food or drink name"},
-                "calories": {"type": "integer", "description": "Calories in kcal"},
-                "meal_type": {
-                    "type": "string",
-                    "enum": ["breakfast", "lunch", "dinner", "snack"],
-                    "description": "Meal category",
+_TOOLS = genai_types.Tool(
+    function_declarations=[
+        genai_types.FunctionDeclaration(
+            name="log_food_item",
+            description=(
+                "Log a food or drink item to the user's food diary. "
+                "Call this whenever the user mentions eating or drinking something. "
+                "Estimate calories and macros from your nutritional knowledge if the user does not provide them."
+            ),
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "name": genai_types.Schema(type=genai_types.Type.STRING, description="Food or drink name"),
+                    "calories": genai_types.Schema(type=genai_types.Type.INTEGER, description="Calories in kcal"),
+                    "meal_type": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        enum=["breakfast", "lunch", "dinner", "snack"],
+                        description="Meal category",
+                    ),
+                    "protein_g": genai_types.Schema(type=genai_types.Type.NUMBER, description="Protein in grams"),
+                    "carbs_g": genai_types.Schema(type=genai_types.Type.NUMBER, description="Carbohydrates in grams"),
+                    "fat_g": genai_types.Schema(type=genai_types.Type.NUMBER, description="Fat in grams"),
                 },
-                "protein_g": {"type": "number", "description": "Protein in grams"},
-                "carbs_g": {"type": "number", "description": "Carbohydrates in grams"},
-                "fat_g": {"type": "number", "description": "Fat in grams"},
-            },
-            "required": ["name", "calories", "meal_type"],
-        },
-    },
-    {
-        "name": "log_workout",
-        "description": (
-            "Log a completed workout session with exercises. "
-            "Call this when the user says they finished a workout."
+                required=["name", "calories", "meal_type"],
+            ),
         ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Workout name, e.g. 'Leg Day', 'Morning Run'"},
-                "notes": {"type": "string", "description": "Optional notes about the session"},
-                "started_at": {
-                    "type": "string",
-                    "description": "ISO 8601 datetime when the workout started. Use current time if unknown.",
-                },
-                "exercises": {
-                    "type": "array",
-                    "description": "Exercises performed during the workout",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "exercise_name": {"type": "string"},
-                            "tracking_type": {
-                                "type": "string",
-                                "enum": [
-                                    "sets_reps_weight",
-                                    "distance_duration",
-                                    "laps",
-                                    "duration_only",
-                                    "freeform",
-                                ],
-                            },
-                            "metrics": {
-                                "type": "object",
-                                "description": (
-                                    "sets_reps_weight: {sets:[{set_number,reps,weight_kg}]}. "
-                                    "distance_duration: {distance_km,duration_seconds}. "
-                                    "laps: {laps:[{lap_number,lap_time_seconds}]}. "
-                                    "duration_only: {duration_seconds}. "
-                                    "freeform: {}"
+        genai_types.FunctionDeclaration(
+            name="log_workout",
+            description=(
+                "Log a completed workout session with exercises. "
+                "Call this when the user says they finished a workout."
+            ),
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "name": genai_types.Schema(type=genai_types.Type.STRING, description="Workout name, e.g. 'Leg Day'"),
+                    "notes": genai_types.Schema(type=genai_types.Type.STRING, description="Optional notes"),
+                    "started_at": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="ISO 8601 datetime when the workout started. Use current time if unknown.",
+                    ),
+                    "exercises": genai_types.Schema(
+                        type=genai_types.Type.ARRAY,
+                        description="Exercises performed",
+                        items=genai_types.Schema(
+                            type=genai_types.Type.OBJECT,
+                            properties={
+                                "exercise_name": genai_types.Schema(type=genai_types.Type.STRING),
+                                "tracking_type": genai_types.Schema(
+                                    type=genai_types.Type.STRING,
+                                    enum=["sets_reps_weight", "distance_duration", "laps", "duration_only", "freeform"],
                                 ),
+                                "metrics": genai_types.Schema(
+                                    type=genai_types.Type.OBJECT,
+                                    description=(
+                                        "sets_reps_weight: {sets:[{set_number,reps,weight_kg}]}. "
+                                        "distance_duration: {distance_km,duration_seconds}. "
+                                        "laps: {laps:[{lap_number,lap_time_seconds}]}. "
+                                        "duration_only: {duration_seconds}. freeform: {}"
+                                    ),
+                                ),
+                                "order": genai_types.Schema(type=genai_types.Type.INTEGER, description="1-based display order"),
+                                "notes": genai_types.Schema(type=genai_types.Type.STRING),
                             },
-                            "order": {"type": "integer", "description": "1-based display order"},
-                            "notes": {"type": "string"},
-                        },
-                        "required": ["exercise_name", "tracking_type", "metrics", "order"],
-                    },
+                            required=["exercise_name", "tracking_type", "metrics", "order"],
+                        ),
+                    ),
                 },
-            },
-            "required": ["name", "exercises"],
-        },
-    },
-]
+                required=["name", "exercises"],
+            ),
+        ),
+    ]
+)
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[.!?])$")
 
-_anthropic = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+_gemini = google_genai.Client(api_key=settings.gemini_api_key)
 
 # { session_id: (owner_user_id, [Message]) }
 _history: dict[str, tuple[str, list[Message]]] = {}
@@ -145,7 +141,6 @@ _SSE_DONE = 'data: {"done": true}\n\n'
 
 
 def validate_session(session_id: str, user_id: str) -> None:
-    """Raise ValueError if session_id exists and belongs to a different user."""
     if session_id in _history:
         owner_id, _ = _history[session_id]
         if owner_id != user_id:
@@ -189,8 +184,7 @@ def _fetch_user_context(user_id: str, supabase: Client) -> str:
         if food_result.data:
             total_kcal = sum(r["calories"] for r in food_result.data)
             items = ", ".join(
-                f"{r['name']} ({r['calories']} kcal, {r['meal_type']})"
-                for r in food_result.data
+                f"{r['name']} ({r['calories']} kcal, {r['meal_type']})" for r in food_result.data
             )
             lines.append(f"Today's food logs: {items}. Total: {total_kcal} kcal.")
         else:
@@ -219,18 +213,21 @@ def _fetch_user_context(user_id: str, supabase: Client) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool execution helpers
+# Message conversion helpers
 # ---------------------------------------------------------------------------
 
 
-def _content_to_dicts(content: list) -> list[dict]:
-    result = []
-    for block in content:
-        if block.type == "text":
-            result.append({"type": "text", "text": block.text})
-        elif block.type == "tool_use":
-            result.append({"type": "tool_use", "id": block.id, "name": block.name, "input": block.input})
-    return result
+def _to_gemini_contents(messages: list[Message]) -> list[genai_types.Content]:
+    contents = []
+    for m in messages:
+        role = "model" if m.role == "assistant" else "user"
+        contents.append(genai_types.Content(role=role, parts=[genai_types.Part(text=m.content)]))
+    return contents
+
+
+# ---------------------------------------------------------------------------
+# Tool execution helpers
+# ---------------------------------------------------------------------------
 
 
 async def _run_log_food(tool_input: dict, user_id: str, supabase: Client) -> tuple[str, str]:
@@ -301,15 +298,7 @@ async def chat(
     supabase: Client,
     token: str,
 ) -> AsyncIterator[str]:
-    """Stream SSE events for a chat turn with live user context.
-
-    Yields:
-        ``data: {"text": "<sentence>"}\\n\\n``                     — streamed text
-        ``data: {"action": "food_logged", "data": {...}}\\n\\n``   — food stored
-        ``data: {"action": "workout_logged", "data": {...}}\\n\\n`` — workout stored
-        ``data: {"action": "log_failed", "tool": "..."}\\n\\n``    — storage error
-        ``data: {"done": true}\\n\\n``                             — terminal event
-    """
+    """Stream SSE events for a chat turn with live user context."""
     supabase.postgrest.auth(token)
 
     messages = _get_or_create_session(session_id, user_id)
@@ -318,21 +307,27 @@ async def chat(
 
     live_context = _fetch_user_context(user_id, supabase)
     system_prompt = f"{_COACH_BASE}\n\nLive user context:\n{live_context}"
-    api_messages = [{"role": m.role, "content": m.content} for m in messages]
+    contents = _to_gemini_contents(messages)
+
+    config = genai_types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        tools=[_TOOLS],
+        max_output_tokens=MAX_TOKENS,
+    )
 
     yielded: list[str] = []
     sentence_buffer = ""
+    function_calls: list[genai_types.FunctionCall] = []
 
     try:
-        async with _anthropic.messages.stream(
+        # --- First pass: stream, collect text + detect function calls ---
+        async for chunk in await _gemini.aio.models.generate_content_stream(
             model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=system_prompt,
-            messages=api_messages,
-            tools=_TOOLS,
-        ) as stream:
-            async for token in stream.text_stream:
-                sentence_buffer += token
+            contents=contents,
+            config=config,
+        ):
+            if chunk.text:
+                sentence_buffer += chunk.text
                 parts = _SENTENCE_END.split(sentence_buffer)
                 while len(parts) > 1:
                     sentence = parts.pop(0).strip()
@@ -341,42 +336,57 @@ async def chat(
                         yielded.append(sentence)
                     sentence_buffer = parts[0] if parts else ""
 
-            if remainder := sentence_buffer.strip():
-                yield _sse({"text": remainder})
-                yielded.append(remainder)
+            if chunk.candidates:
+                for candidate in chunk.candidates:
+                    if candidate.content and candidate.content.parts:
+                        for part in candidate.content.parts:
+                            if part.function_call:
+                                function_calls.append(part.function_call)
 
-            final_msg = await stream.get_final_message()
+        if remainder := sentence_buffer.strip():
+            yield _sse({"text": remainder})
+            yielded.append(remainder)
 
-        if final_msg.stop_reason == "tool_use":
-            logger.info("Tool use triggered. Final message content: %s", final_msg.content)
-            tool_results = []
-            for block in final_msg.content:
-                if block.type == "tool_use":
-                    logger.info("Tool call — name: %s, input: %s", block.name, block.input)
-                    action_sse, result_content = await _execute_tool(
-                        block.name, block.input, user_id, supabase
+        # --- Tool execution + follow-up ---
+        if function_calls:
+            logger.info("Tool use triggered: %s", [fc.name for fc in function_calls])
+
+            # Build function call parts for history
+            fc_parts = [genai_types.Part(function_call=fc) for fc in function_calls]
+            tool_response_parts: list[genai_types.Part] = []
+
+            for fc in function_calls:
+                tool_input = dict(fc.args) if fc.args else {}
+                logger.info("Tool call — name: %s, input: %s", fc.name, tool_input)
+                action_sse, result_content = await _execute_tool(fc.name, tool_input, user_id, supabase)
+                yield action_sse
+                tool_response_parts.append(
+                    genai_types.Part(
+                        function_response=genai_types.FunctionResponse(
+                            name=fc.name,
+                            response={"result": result_content},
+                        )
                     )
-                    yield action_sse
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result_content,
-                    })
+                )
 
-            followup_messages = api_messages + [
-                {"role": "assistant", "content": _content_to_dicts(final_msg.content)},
-                {"role": "user", "content": tool_results},
+            followup_contents = contents + [
+                genai_types.Content(role="model", parts=fc_parts),
+                genai_types.Content(role="user", parts=tool_response_parts),
             ]
 
+            followup_config = genai_types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=MAX_TOKENS,
+            )
+
             sentence_buffer = ""
-            async with _anthropic.messages.stream(
+            async for chunk in await _gemini.aio.models.generate_content_stream(
                 model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=system_prompt,
-                messages=followup_messages,
-            ) as stream2:
-                async for token in stream2.text_stream:
-                    sentence_buffer += token
+                contents=followup_contents,
+                config=followup_config,
+            ):
+                if chunk.text:
+                    sentence_buffer += chunk.text
                     parts = _SENTENCE_END.split(sentence_buffer)
                     while len(parts) > 1:
                         sentence = parts.pop(0).strip()
@@ -389,14 +399,9 @@ async def chat(
                 yield _sse({"text": remainder})
                 yielded.append(remainder)
 
-    except anthropic.APIStatusError as exc:
-        logger.error("Anthropic API error %s: %s", exc.status_code, exc.message)
+    except Exception as exc:
+        logger.error("Gemini error: %s", exc, exc_info=True)
         yield _sse({"error": "AI service error, please try again."})
-        yield _SSE_DONE
-        return
-    except anthropic.APIConnectionError:
-        logger.exception("Anthropic connection error")
-        yield _sse({"error": "Could not reach AI service, please try again."})
         yield _SSE_DONE
         return
 
