@@ -1,14 +1,12 @@
-"""Voice chat service — Anthropic-powered fitness coach with SSE streaming."""
+"""Voice chat service — provider-agnostic fitness coach with SSE streaming."""
 
 import json
 import logging
-import re
 from typing import AsyncIterator
-
-import anthropic
 
 from app.config import settings
 from app.schemas.voice import Message
+from app.services.ai.service import AIProviderType, AIService
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +14,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-MODEL = "claude-sonnet-4-6"
-MAX_HISTORY = 20  # messages per session (hard cap to control token spend)
-MAX_TOKENS = 256  # response tokens — short, coach-style replies
+MAX_HISTORY = 20
 
 SYSTEM_PROMPT = (
     "You are Whoomz, a friendly fitness coach AI. "
@@ -26,12 +22,6 @@ SYSTEM_PROMPT = (
     "Give short, conversational responses — 1-3 sentences max. "
     "No markdown, no bullet points. Speak like a coach, not a textbook."
 )
-
-# Sentence-boundary detection: split after . ! ? followed by whitespace or EOS
-_SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[.!?])$")
-
-# Shared client — one instance reuses the connection pool across all requests
-_anthropic = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 # ---------------------------------------------------------------------------
 # SSE helpers
@@ -100,40 +90,21 @@ async def chat(
     if len(messages) > MAX_HISTORY:
         del messages[:-MAX_HISTORY]
 
-    sentence_buffer = ""
-    yielded: list[str] = []  # completed sentences, used to build the assistant history entry
+    api_messages = _build_api_messages(messages)
+    ai = AIService(provider=AIProviderType(settings.ai_provider))
+    yielded: list[str] = []
 
     try:
-        async with _anthropic.messages.stream(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=_build_api_messages(messages),
-        ) as stream:
-            async for token in stream.text_stream:
-                sentence_buffer += token
-                parts = _SENTENCE_END.split(sentence_buffer)
-                while len(parts) > 1:
-                    sentence = parts.pop(0).strip()
-                    if sentence:
-                        yield _sse({"text": sentence})
-                        yielded.append(sentence)
-                    sentence_buffer = parts[0] if parts else ""
-
-    except anthropic.APIStatusError as exc:
-        logger.error("Anthropic API error %s: %s", exc.status_code, exc.message)
+        async for raw in ai.stream(api_messages, SYSTEM_PROMPT, tools=None):
+            data = json.loads(raw[len("data: "):].strip())
+            if text := data.get("text"):
+                yield raw
+                yielded.append(text)
+    except Exception:
+        logger.exception("AI service error in voice chat")
         yield _sse({"error": "AI service error, please try again."})
         yield _SSE_DONE
         return
-    except anthropic.APIConnectionError:
-        logger.exception("Anthropic connection error")
-        yield _sse({"error": "Could not reach AI service, please try again."})
-        yield _SSE_DONE
-        return
-
-    if remainder := sentence_buffer.strip():
-        yield _sse({"text": remainder})
-        yielded.append(remainder)
 
     if assistant_reply := " ".join(yielded):
         messages.append(Message(role="assistant", content=assistant_reply))

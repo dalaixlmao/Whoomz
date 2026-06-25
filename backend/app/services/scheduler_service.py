@@ -4,17 +4,22 @@ import logging
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import anthropic
 from supabase import Client
 
 from app.config import settings
 from app.services import daily_note_service
+from app.services.ai.service import AIProviderType, AIService
 
 logger = logging.getLogger(__name__)
 
 _IST = ZoneInfo("Asia/Kolkata")
-_anthropic = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-MODEL = "claude-sonnet-4-6"
+
+_NOTE_SYSTEM = (
+    "You write short, punchy daily fitness progress notes for a fitness app. "
+    "1-2 sentences max. Be motivating, specific, and catchy — like the kind of "
+    "one-liner you'd see in a premium wellness app. No markdown, no bullet points. "
+    "Speak directly to the user using 'you'."
+)
 
 
 def _yesterday_bounds() -> tuple[date, str, str]:
@@ -131,18 +136,11 @@ def _build_weight_summary(user_id: str, yesterday: date, supabase: Client) -> st
 
 async def _generate_note(context_lines: list[str]) -> str:
     context = "\n".join(context_lines)
-    response = await _anthropic.messages.create(
-        model=MODEL,
-        max_tokens=120,
-        system=(
-            "You write short, punchy daily fitness progress notes for a fitness app. "
-            "1-2 sentences max. Be motivating, specific, and catchy — like the kind of "
-            "one-liner you'd see in a premium wellness app. No markdown, no bullet points. "
-            "Speak directly to the user using 'you'."
-        ),
+    ai = AIService(provider=AIProviderType(settings.ai_provider))
+    return await ai.generate_text(
         messages=[{"role": "user", "content": f"Write a progress note based on:\n{context}"}],
+        system_prompt=_NOTE_SYSTEM,
     )
-    return response.content[0].text.strip()
 
 
 async def run_daily_notes_job(supabase: Client) -> dict:

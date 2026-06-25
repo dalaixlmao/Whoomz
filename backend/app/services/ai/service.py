@@ -12,6 +12,7 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[.!?])$")
 class AIProviderType(StrEnum):
     GEMINI = "gemini"
     OPENAI = "openai"
+    ANTHROPIC = "anthropic"
 
 
 def create_ai_provider(provider: AIProviderType) -> AIProvider:
@@ -22,6 +23,9 @@ def create_ai_provider(provider: AIProviderType) -> AIProvider:
     if provider == AIProviderType.OPENAI:
         from app.services.ai.openai import OpenAIProvider
         return OpenAIProvider()
+    if provider == AIProviderType.ANTHROPIC:
+        from app.services.ai.anthropic import AnthropicProvider
+        return AnthropicProvider()
     raise ValueError(f"Unknown AI provider: {provider}")
 
 
@@ -91,3 +95,18 @@ class AIService:
 
         if remainder := buffer.strip():
             yield f'data: {json.dumps({"text": remainder})}\n\n'
+
+    async def generate_text(
+        self,
+        messages: list[dict],
+        system_prompt: str,
+    ) -> str:
+        """Buffer a full stream and return the complete text.
+
+        No tools. Suitable for one-shot generation (e.g. the daily notes scheduler).
+        """
+        parts: list[str] = []
+        async for event in self._provider.stream(messages, system_prompt, tools=None):
+            if isinstance(event, TextChunk):
+                parts.append(event.text)
+        return "".join(parts).strip()

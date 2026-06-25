@@ -7,6 +7,7 @@ from typing import AsyncIterator
 
 from supabase import Client
 
+from app.config import settings
 from app.schemas.chat import Message
 from app.schemas.food_log import FoodLogCreate
 from app.schemas.workout import WorkoutCreate
@@ -276,7 +277,6 @@ async def chat(
     message: str,
     supabase: Client,
     token: str,
-    provider: AIProviderType = AIProviderType.GEMINI,
 ) -> AsyncIterator[str]:
     """Stream SSE events for a chat turn with live user context.
 
@@ -297,7 +297,7 @@ async def chat(
     system_prompt = f"{_COACH_BASE}\n\nLive user context:\n{live_context}"
     api_messages = [{"role": m.role, "content": m.content} for m in messages]
 
-    ai = AIService(provider=provider)
+    ai = AIService(provider=AIProviderType(settings.ai_provider))
     yielded: list[str] = []
     pending_tool_calls: list[ToolCallRequest] = []
 
