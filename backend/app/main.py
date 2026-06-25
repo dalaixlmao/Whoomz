@@ -8,9 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.dependencies import get_supabase_admin
+from app.logging_config import setup_logging
 from app.routers import auth, chat, daily_notes, food_logs, health, scheduler, voice, weight_logs, workouts
 from app.services.scheduler_service import run_daily_notes_job
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
@@ -18,6 +20,7 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Whoomz backend starting up...")
     _scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
     _scheduler.add_job(
         run_daily_notes_job,
@@ -26,9 +29,11 @@ async def lifespan(app: FastAPI):
     )
     _scheduler.start()
     logger.info("Scheduler started — daily notes cron: %s (Asia/Kolkata)", settings.daily_notes_cron)
+    logger.info("✓ Whoomz backend ready on /api/v1")
     yield
     _scheduler.shutdown()
-    logger.info("Whoomz backend shutting down.")
+    logger.info("Scheduler shut down")
+    logger.info("✓ Whoomz backend shutdown complete")
 
 
 app = FastAPI(

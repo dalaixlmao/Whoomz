@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, TypedDict
 
 from fastapi import Depends, HTTPException, status
@@ -7,6 +8,8 @@ from openai import AsyncOpenAI
 from supabase import Client, create_client
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer()
 
@@ -47,10 +50,13 @@ async def get_current_user(
     token = credentials.credentials
     try:
         response = supabase.auth.get_user(token)
-        return AuthUser(id=response.user.id, email=response.user.email or "", token=token)
+        user_id = response.user.id
+        logger.debug("User authenticated — user_id: %s", user_id)
+        return AuthUser(id=user_id, email=response.user.email or "", token=token)
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        logger.warning("Authentication failed — error: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Query, status
@@ -11,6 +12,7 @@ from app.schemas.workout_exercise import (
 )
 from app.services import workout_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/workouts", tags=["workouts"])
 
 
@@ -25,7 +27,10 @@ async def create_workout(
     user: CurrentUser,
     supabase: UserSupabaseClient,
 ) -> WorkoutResponse:
-    return await workout_service.create_workout(user["id"], body, supabase)
+    logger.info("Create workout — user_id: %s, name: %s", user["id"], body.name)
+    result = await workout_service.create_workout(user["id"], body, supabase)
+    logger.info("Workout created — id: %s", result.id)
+    return result
 
 
 @router.get("/")

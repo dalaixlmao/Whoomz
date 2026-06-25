@@ -86,6 +86,71 @@ flutter run --release
 
 ---
 
+## Logging (Backend)
+
+Structured logging in the **FastAPI backend** is configured automatically via `app/logging_config.py` on startup. No manual setup required.
+
+### Log Levels & Usage
+
+| Level | Use Case | Example |
+|---|---|---|
+| `DEBUG` | Service internals, state transitions | `User authenticated — user_id: 550e8400-...` |
+| `INFO` | User requests, successful operations, lifecycle | `Signup request — email: user@example.com` |
+| `WARNING` | Auth failures, validation errors, access denied | `Login service error — email: user@example.com` |
+| `ERROR` | Exceptions, unexpected null, DB errors | `Failed to create food log — error: Unique constraint violated` |
+
+**Format:** `[LEVEL] YYYY-MM-DD HH:MM:SS — logger_name — message`
+
+### Backend: Router Logging Pattern
+
+```python
+# FastAPI router — routers/food_logs.py
+import logging
+logger = logging.getLogger(__name__)
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_food_log(body: FoodLogCreate, user: CurrentUser, supabase: SupabaseClient) -> FoodLogResponse:
+    logger.info("Create food log — user_id: %s, food: %s, calories: %d", user["id"], body.name, body.calories)
+    result = await food_log_service.create(user["id"], body, supabase)
+    logger.info("Food log created — id: %s", result.id)
+    return result
+```
+
+### Backend: Service Logging Pattern
+
+```python
+# FastAPI service — services/food_log_service.py
+async def create(user_id: str, data: FoodLogCreate, supabase: Client) -> FoodLogResponse:
+    logger.debug("Creating food log — user_id: %s, food: %s", user_id, data.name)
+    try:
+        result = supabase.table("food_logs").insert(payload).execute()
+        logger.debug("Food log created — id: %s", result.data[0]["id"])
+        return FoodLogResponse(**result.data[0])
+    except Exception as exc:
+        logger.error("Failed to create food log — user_id: %s, error: %s", user_id, str(exc))
+        raise HTTPException(...) from exc
+```
+
+### Best Practices
+
+- Use `%s` formatting (lazy evaluation, not f-strings)
+- Always include `user_id` for request tracing
+- Log at router (request/response) and service (critical ops) levels
+- **Never** log passwords, full tokens, or sensitive credentials
+- Use consistent message format: `Action — key: value, key: value`
+
+### Currently Logged
+
+- ✅ Auth: signup, login, logout, refresh (requests + responses)
+- ✅ Food Logs: create, list, delete
+- ✅ Workouts: create
+- ✅ Weight Logs: create
+- ✅ Chat & Voice: requests + validation
+- ✅ Scheduler: daily notes job
+- ✅ App Lifecycle: startup, shutdown, scheduler status
+
+---
+
 ## Backend Details
 
 ### Data Model

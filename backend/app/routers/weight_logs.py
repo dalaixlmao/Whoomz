@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Query, status
@@ -6,6 +7,7 @@ from app.dependencies import CurrentUser, UserSupabaseClient
 from app.schemas.weight_log import WeightLogCreate, WeightLogResponse
 from app.services import weight_log_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/weight-logs", tags=["weight-logs"])
 
 
@@ -15,7 +17,10 @@ async def create_weight_log(
     user: CurrentUser,
     supabase: UserSupabaseClient,
 ) -> WeightLogResponse:
-    return await weight_log_service.create(user["id"], body, supabase)
+    logger.info("Create weight log — user_id: %s, weight: %.1f kg", user["id"], body.weight_kg)
+    result = await weight_log_service.create(user["id"], body, supabase)
+    logger.info("Weight log created — id: %s", result.id)
+    return result
 
 
 @router.get("/")
