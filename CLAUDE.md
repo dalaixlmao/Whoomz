@@ -9,7 +9,7 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   Flutter Mobile App                │
-│          (Dart 3.x, Riverpod, Dio, freezed)        │
+│          (Dart 3.x, Riverpod, Dio, General Sans)     │
 └────────────────┬────────────────────────────────────┘
                  │ HTTP (Dio + Auth Interceptor)
                  ↓
@@ -44,8 +44,9 @@
 - **State Management:** Riverpod 2.x
 - **HTTP Client:** Dio 5.x (with auth interceptor + token refresh)
 - **Secure Storage:** flutter_secure_storage
-- **Code Generation:** freezed + json_serializable
-- **Build Runner:** build_runner
+- **Models:** hand-written `fromJson`/`toJson` (no codegen)
+- **Voice:** speech_to_text (STT) + flutter_tts (spoken replies)
+- **Design system:** "Whoomz AI" board — General Sans only, `#FAF9F6` paper / `#111110` ink / `#2635F0` accent, no tab bar (conversation is the navigation)
 
 ---
 
@@ -73,9 +74,6 @@ uvicorn app.main:app --reload
 ```bash
 # Install dependencies
 flutter pub get
-
-# Generate freezed/json_serializable code
-dart run build_runner build --delete-conflicting-outputs
 
 # Run on simulator
 flutter run
@@ -289,7 +287,6 @@ flutter test                                           # Run all
 flutter test test/features/auth/auth_repository_test.dart  # Single file
 flutter analyze                                       # Lint
 dart format lib/ test/                                # Format
-dart run build_runner watch --delete-conflicting-outputs  # Watch mode
 ```
 
 - Mock Dio with `mockito` or `mocktail`—no real HTTP calls in tests
@@ -406,7 +403,7 @@ flutter analyze                                 # Lint
 |---|---|
 | `/flutter-integration` | Generate Flutter client code, models, repos, auth, SSE for Whoomz API |
 | `/flutter-code-quality` | Code quality, SOLID, code smells, architecture for Flutter |
-| `/context7-mcp` | Library docs (Flutter, Riverpod, Dio, freezed, flutter_secure_storage) |
+| `/context7-mcp` | Library docs (Flutter, Riverpod, Dio, speech_to_text, flutter_secure_storage) |
 | `/run-flutter-*` | Animation, layouts, linting, local storage, navigation, performance, platform channels, responsive, state, Supabase, testing, theming, widgets |
 | `/verify` | Confirm fix/feature works end-to-end on simulator/device |
 | `/run` | Start app and observe behavior |
@@ -445,7 +442,7 @@ flutter analyze                                 # Lint
 2. **Data Fetch:**
    - Frontend: Repository calls Dio → GET `/api/v1/<resource>`
    - Backend: Service queries Supabase → returns Pydantic response
-   - Frontend: freezed model deserializes JSON → state via Riverpod
+   - Frontend: model fromJson deserializes JSON → state via Riverpod
 
 3. **Token Refresh:**
    - Frontend: Dio interceptor detects 401
@@ -469,4 +466,4 @@ flutter analyze                                 # Lint
 | **State Mgmt** | N/A (stateless API) | Riverpod |
 | **Auth** | Supabase Auth (RLS at DB) | Token-based (Dio interceptor) |
 | **Testing** | pytest + httpx | flutter_test + mocktail |
-| **Conventions** | Async, router prefix, services | Providers, freezed models, no direct repos |
+| **Conventions** | Async, router prefix, services | Providers, hand-written models, no direct repos |

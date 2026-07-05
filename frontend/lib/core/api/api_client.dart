@@ -59,6 +59,7 @@ class ApiClient {
       await _tokenStorage.persist(
         accessToken: response.data['access_token'] as String,
         refreshToken: response.data['refresh_token'] as String,
+        rememberMe: !TokenStorage.sessionOnly,
       );
       return true;
     } catch (_) {

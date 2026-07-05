@@ -1,52 +1,38 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/api/api_client.dart';
-import '../../../core/auth/token_storage.dart';
+import '../../../core/api/api_endpoints.dart';
 import 'auth_models.dart';
 
 class AuthRepository {
-  final _dio = ApiClient.dio;
-  final _storage = TokenStorage();
+  AuthRepository({Dio? dio}) : _dio = dio ?? ApiClient.dio;
+
+  final Dio _dio;
 
   Future<AuthResponse> signup({
     required String name,
     required String email,
     required String password,
   }) async {
-    final res = await _dio.post('/auth/signup', data: {
-      'name': name,
-      'email': email,
-      'password': password,
-    });
-    return AuthResponse.fromJson(res.data as Map<String, dynamic>);
+    final response = await _dio.post(
+      ApiEndpoints.signup,
+      data: {'name': name, 'email': email, 'password': password},
+    );
+    return AuthResponse.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<AuthResponse> login({
     required String email,
     required String password,
   }) async {
-    final res = await _dio.post('/auth/login', data: {
-      'email': email,
-      'password': password,
-    });
-    return AuthResponse.fromJson(res.data as Map<String, dynamic>);
+    final response = await _dio.post(
+      ApiEndpoints.login,
+      data: {'email': email, 'password': password},
+    );
+    return AuthResponse.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<void> logout() async {
-    await _dio.post('/auth/logout');
-    await _storage.deleteAll();
+    await _dio.post(ApiEndpoints.logout);
   }
-
-  Future<AuthResponse> refresh(String refreshToken) async {
-    final res = await _dio.post('/auth/refresh', data: {
-      'refresh_token': refreshToken,
-    });
-    final auth = AuthResponse.fromJson(res.data as Map<String, dynamic>);
-    await _persist(auth);
-    return auth;
-  }
-
-  Future<void> _persist(AuthResponse auth) => _storage.persist(
-        accessToken: auth.accessToken,
-        refreshToken: auth.refreshToken,
-        rememberMe: !TokenStorage.sessionOnly,
-      );
 }
