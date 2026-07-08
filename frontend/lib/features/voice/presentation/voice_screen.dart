@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../progress/presentation/progress_screen.dart';
+import '../../tweaks/tweaks_controller.dart';
 import '../voice_engine.dart';
 import 'orb.dart';
 
@@ -190,8 +191,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
-                        color: WhoomzPalette.accent,
+                      decoration: BoxDecoration(
+                        color: wz.accent,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -224,7 +225,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                 padding: const EdgeInsets.only(bottom: 96),
                 child: Hero(
                   tag: 'voice-orb',
-                  child: Orb(level: level),
+                  child: Orb(
+                    level: level,
+                    style: ref.watch(tweaksProvider).orbStyle,
+                  ),
                 ),
               ),
             ],

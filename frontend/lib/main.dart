@@ -5,21 +5,23 @@ import 'app/theme.dart';
 import 'features/auth/presentation/auth_controller.dart';
 import 'features/auth/presentation/auth_screen.dart';
 import 'features/today/presentation/today_screen.dart';
+import 'features/tweaks/tweaks_controller.dart';
 
 void main() {
   runApp(const ProviderScope(child: WhoomzApp()));
 }
 
-class WhoomzApp extends StatelessWidget {
+class WhoomzApp extends ConsumerWidget {
   const WhoomzApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accent = ref.watch(tweaksProvider).accent.color;
     return MaterialApp(
       title: 'Whoomz',
       debugShowCheckedModeBanner: false,
-      theme: whoomzTheme(Brightness.light),
-      darkTheme: whoomzTheme(Brightness.dark),
+      theme: whoomzTheme(Brightness.light, accent: accent),
+      darkTheme: whoomzTheme(Brightness.dark, accent: accent),
       home: const _Gate(),
     );
   }

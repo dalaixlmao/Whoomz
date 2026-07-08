@@ -5,8 +5,12 @@ import '../../../app/motion.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/blinking_caret.dart';
 import '../../../shared/widgets/composer.dart';
+import '../../food_logs/presentation/meals_screen.dart';
 import '../../progress/presentation/progress_screen.dart';
+import '../../tweaks/tweaks_controller.dart';
+import '../../tweaks/tweaks_screen.dart';
 import '../../voice/presentation/voice_screen.dart';
+import '../../workouts/presentation/workout_screens.dart';
 import 'conversation_controller.dart';
 
 class ConversationScreen extends ConsumerStatefulWidget {
@@ -32,10 +36,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (text.isEmpty) return;
     _input.clear();
     // The conversation is the navigation.
-    if (text.toLowerCase() == 'progress') {
+    final destination = switch (text.toLowerCase()) {
+      'progress' => const ProgressScreen() as Widget,
+      'meals' => const MealsScreen(),
+      'workouts' => const WorkoutsScreen(),
+      'tweaks' => const TweaksScreen(),
+      _ => null,
+    };
+    if (destination != null) {
       Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const ProgressScreen()));
+      ).push(MaterialPageRoute(builder: (_) => destination));
       return;
     }
     ref.read(conversationProvider.notifier).send(text);
@@ -85,7 +96,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         vertical: 8,
                       ),
                       itemCount: entries.length,
-                      itemBuilder: (_, i) => _EntryView(entry: entries[i]),
+                      itemBuilder: (_, i) => _EntryView(
+                        entry: entries[i],
+                        bubbleStyle: ref.watch(tweaksProvider).bubbleStyle,
+                      ),
                     ),
             ),
             Padding(
@@ -108,9 +122,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 }
 
 class _EntryView extends StatelessWidget {
-  const _EntryView({required this.entry});
+  const _EntryView({required this.entry, this.bubbleStyle = BubbleStyle.ink});
 
   final Entry entry;
+  final BubbleStyle bubbleStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -126,10 +141,18 @@ class _EntryView extends StatelessWidget {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             decoration: BoxDecoration(
-              color: wz.ink,
+              color: bubbleStyle == BubbleStyle.ink ? wz.ink : null,
+              border: bubbleStyle == BubbleStyle.outline
+                  ? Border.all(color: wz.hairline, width: 1.5)
+                  : null,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Text(text, style: WhoomzType.body.copyWith(color: wz.onInk)),
+            child: Text(
+              text,
+              style: WhoomzType.body.copyWith(
+                color: bubbleStyle == BubbleStyle.ink ? wz.onInk : wz.ink,
+              ),
+            ),
           ),
         ),
         CoachEntry() => _CoachText(entry: entry as CoachEntry),
@@ -138,8 +161,8 @@ class _EntryView extends StatelessWidget {
             Container(
               width: 5,
               height: 5,
-              decoration: const BoxDecoration(
-                color: WhoomzPalette.accent,
+              decoration: BoxDecoration(
+                color: wz.accent,
                 shape: BoxShape.circle,
               ),
             ),

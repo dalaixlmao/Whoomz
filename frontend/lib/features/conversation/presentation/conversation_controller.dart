@@ -152,7 +152,8 @@ class ConversationController extends Notifier<ConversationState> {
 
   void _appendAction(String action, Map<String, dynamic>? data) {
     final label = switch (action) {
-      'food_logged' => _foodLabel(data),
+      'food_logged' => _foodLabel('LOGGED', data),
+      'food_removed' => _foodLabel('REMOVED', data),
       'workout_logged' =>
         'LOGGED · ${(data?['name'] as String? ?? 'WORKOUT').toUpperCase()}',
       'log_failed' => "COULDN'T SAVE THAT ONE",
@@ -162,16 +163,17 @@ class ConversationController extends Notifier<ConversationState> {
     state = state.copyWith(
       entries: [...state.entries, ActionEntry(_nextId++, label)],
     );
-    if (action == 'food_logged' || action == 'workout_logged') {
+    if (action != 'log_failed') {
       ref.invalidate(todayProvider);
+      ref.invalidate(streakProvider);
     }
   }
 
-  String _foodLabel(Map<String, dynamic>? data) {
+  String _foodLabel(String verb, Map<String, dynamic>? data) {
     final name = (data?['name'] as String? ?? 'FOOD').toUpperCase();
     final kcal = data?['calories'];
     return kcal is num
-        ? 'LOGGED · $name · ${formatKcal(kcal)} KCAL'
-        : 'LOGGED · $name';
+        ? '$verb · $name · ${formatKcal(kcal)} KCAL'
+        : '$verb · $name';
   }
 }

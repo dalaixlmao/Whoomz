@@ -34,7 +34,7 @@ class _BlinkingCaretState extends State<BlinkingCaret>
         height: widget.height,
         margin: const EdgeInsets.only(left: 3),
         decoration: BoxDecoration(
-          color: WhoomzPalette.accent,
+          color: context.wz.accent,
           borderRadius: BorderRadius.circular(1.25),
         ),
       ),

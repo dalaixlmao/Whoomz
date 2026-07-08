@@ -97,6 +97,7 @@ class _QuickLogSheetState extends ConsumerState<_QuickLogSheet> {
             .create(Units.lbsToKg(_lbs.value!));
       }
       ref.invalidate(todayProvider);
+      ref.invalidate(streakProvider);
       ref.invalidate(weightSeriesProvider);
       ref.invalidate(calorieSeriesProvider);
       ref.invalidate(recentFoodsProvider);
@@ -250,7 +251,7 @@ class _QuickLogSheetState extends ConsumerState<_QuickLogSheet> {
                 height: 56,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: WhoomzPalette.accent,
+                  color: wz.accent,
                   borderRadius: BorderRadius.circular(28),
                 ),
                 alignment: Alignment.center,

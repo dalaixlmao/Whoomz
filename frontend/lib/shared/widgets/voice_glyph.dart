@@ -13,18 +13,22 @@ class VoiceGlyph extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _WavePainter()),
+      child: CustomPaint(painter: _WavePainter(context.wz.accent)),
     );
   }
 }
 
 class _WavePainter extends CustomPainter {
+  const _WavePainter(this.color);
+
+  final Color color;
+
   static const _heights = [0.35, 0.7, 1.0, 0.55, 0.3];
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = WhoomzPalette.accent
+      ..color = color
       ..strokeWidth = size.width / 8
       ..strokeCap = StrokeCap.round;
     final step = size.width / (_heights.length - 1);
@@ -37,5 +41,6 @@ class _WavePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _WavePainter oldDelegate) => false;
+  bool shouldRepaint(covariant _WavePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

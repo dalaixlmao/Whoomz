@@ -35,7 +35,9 @@ _COACH_BASE = (
     "Always include protein_g, carbs_g, fat_g estimates. "
     "When the user explicitly says they finished a workout, call log_workout to record it "
     "along with any exercises they mention. "
-    "Never fabricate workout data — only log workouts the user explicitly describes."
+    "Never fabricate workout data — only log workouts the user explicitly describes. "
+    "When the user asks to remove, undo, or correct a food they logged today, "
+    "call delete_food_log with the food's name as it appears in today's food logs."
 )
 
 _TOOL_DEFINITIONS: list[ToolDefinition] = [
@@ -105,6 +107,23 @@ _TOOL_DEFINITIONS: list[ToolDefinition] = [
             }
         },
         required=["name", "exercises"],
+    ),
+    ToolDefinition(
+        name="delete_food_log",
+        description=(
+            "Remove a food item the user logged today. "
+            "Call this when the user asks to remove, undo, or correct a logged food. "
+            "Use the food's name as it appears in today's food logs."
+        ),
+        parameters={
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the logged food to remove (today's most recent match is deleted)",
+                }
+            }
+        },
+        required=["name"],
     ),
 ]
 
@@ -253,11 +272,47 @@ async def _run_log_workout(tool_input: dict, user_id: str, supabase: Client) -> 
         return _sse({"action": "log_failed", "tool": "log_workout"}), f"Failed to log workout: {exc}"
 
 
+async def _run_delete_food(tool_input: dict, user_id: str, supabase: Client) -> tuple[str, str]:
+    name = str(tool_input.get("name", "")).strip()
+    try:
+        today = date.today()
+        result = (
+            supabase.table("food_logs")
+            .select("id, name, calories, meal_type")
+            .eq("user_id", user_id)
+            .ilike("name", f"%{name}%")
+            .gte("logged_at", f"{today}T00:00:00+00:00")
+            .lte("logged_at", f"{today}T23:59:59.999999+00:00")
+            .order("logged_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return (
+                _sse({"action": "log_failed", "tool": "delete_food_log"}),
+                f"No food named '{name}' found in today's logs.",
+            )
+        log = result.data[0]
+        await food_log_service.delete(user_id, log["id"], supabase)
+        return (
+            _sse({"action": "food_removed", "data": log}),
+            f"Removed: {log['name']}, {log['calories']} kcal ({log['meal_type']})",
+        )
+    except Exception as exc:
+        logger.warning("delete_food_log tool failed: %s", exc, exc_info=True)
+        return (
+            _sse({"action": "log_failed", "tool": "delete_food_log"}),
+            f"Failed to remove food: {exc}",
+        )
+
+
 async def _execute_tool(tc: ToolCallRequest, user_id: str, supabase: Client) -> tuple[str, ToolResult]:
     if tc.name == "log_food_item":
         action_sse, result = await _run_log_food(tc.args, user_id, supabase)
     elif tc.name == "log_workout":
         action_sse, result = await _run_log_workout(tc.args, user_id, supabase)
+    elif tc.name == "delete_food_log":
+        action_sse, result = await _run_delete_food(tc.args, user_id, supabase)
     else:
         logger.warning("Unknown tool called by model: %s", tc.name)
         action_sse = _sse({"action": "unknown_tool", "tool": tc.name})
@@ -284,6 +339,7 @@ async def chat(
         ``data: {"text": "<sentence>"}\\n\\n``                     — streamed text
         ``data: {"action": "food_logged", "data": {...}}\\n\\n``   — food stored
         ``data: {"action": "workout_logged", "data": {...}}\\n\\n`` — workout stored
+        ``data: {"action": "food_removed", "data": {...}}\\n\\n``   — food deleted
         ``data: {"action": "log_failed", "tool": "..."}\\n\\n``    — storage error
         ``data: {"done": true}\\n\\n``                             — terminal event
     """

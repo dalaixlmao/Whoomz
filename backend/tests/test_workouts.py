@@ -6,7 +6,7 @@ import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
-from app.dependencies import get_current_user, get_supabase
+from app.dependencies import get_current_user, get_supabase, get_user_supabase
 from app.main import app
 
 # ---------------------------------------------------------------------------
@@ -72,6 +72,7 @@ def reset_overrides():
 def auth_override():
     """All workout tests run as an authenticated user by default."""
     app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+    app.dependency_overrides[get_user_supabase] = lambda: MagicMock()
 
 
 def _mock_supabase():
@@ -95,6 +96,7 @@ async def test_create_workout_returns_201():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_WORKOUT])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/", json=VALID_WORKOUT)
@@ -112,6 +114,7 @@ async def test_create_workout_injects_user_id():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_WORKOUT])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post(f"{BASE}/", json=VALID_WORKOUT)
@@ -126,6 +129,7 @@ async def test_create_workout_with_notes():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[row])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -167,6 +171,7 @@ async def test_create_workout_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/", json=VALID_WORKOUT)
@@ -194,6 +199,7 @@ async def test_list_workouts_no_date_returns_all():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_WORKOUT])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/")
@@ -207,6 +213,7 @@ async def test_list_workouts_with_date_calls_range_filters():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_WORKOUT])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/", params={"date": "2024-03-15"})
@@ -222,6 +229,7 @@ async def test_list_workouts_no_date_skips_range_filters():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.get(f"{BASE}/")
@@ -243,6 +251,7 @@ async def test_list_workouts_empty_returns_empty_list():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/")
@@ -256,6 +265,7 @@ async def test_list_workouts_filters_by_user_id():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.get(f"{BASE}/")
@@ -269,6 +279,7 @@ async def test_list_workouts_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/")
@@ -301,6 +312,7 @@ async def test_get_workout_detail_returns_200_with_exercises():
         MagicMock(data=[DB_EXERCISE]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/{WORKOUT_ID}")
@@ -321,6 +333,7 @@ async def test_get_workout_detail_empty_exercises():
         MagicMock(data=[]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/{WORKOUT_ID}")
@@ -334,6 +347,7 @@ async def test_get_workout_detail_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/{WORKOUT_ID}")
@@ -346,6 +360,7 @@ async def test_get_workout_detail_wrong_owner_returns_403():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=OTHER_ROW)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/{WORKOUT_ID}")
@@ -358,6 +373,7 @@ async def test_get_workout_detail_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/{WORKOUT_ID}")
@@ -389,6 +405,7 @@ async def test_patch_workout_returns_200():
         MagicMock(data=[updated_row]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(f"{BASE}/{WORKOUT_ID}", json={"name": "Evening Run"})
@@ -406,6 +423,7 @@ async def test_patch_workout_only_sends_provided_fields():
         MagicMock(data=[DB_WORKOUT]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.patch(f"{BASE}/{WORKOUT_ID}", json={"name": "New Name"})
@@ -421,6 +439,7 @@ async def test_patch_workout_empty_body_returns_422():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = [MagicMock(data=OWNED_ROW)]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(f"{BASE}/{WORKOUT_ID}", json={})
@@ -433,6 +452,7 @@ async def test_patch_workout_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(f"{BASE}/{WORKOUT_ID}", json={"name": "X"})
@@ -445,6 +465,7 @@ async def test_patch_workout_wrong_owner_returns_403():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=OTHER_ROW)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(f"{BASE}/{WORKOUT_ID}", json={"name": "X"})
@@ -465,6 +486,7 @@ async def test_patch_workout_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(f"{BASE}/{WORKOUT_ID}", json={"name": "X"})
@@ -495,6 +517,7 @@ async def test_delete_workout_returns_204():
         MagicMock(data=[]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}")
@@ -507,6 +530,7 @@ async def test_delete_workout_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}")
@@ -519,6 +543,7 @@ async def test_delete_workout_wrong_owner_returns_403():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=OTHER_ROW)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}")
@@ -531,6 +556,7 @@ async def test_delete_workout_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}")
@@ -561,6 +587,7 @@ async def test_add_exercise_returns_201():
         MagicMock(data=[DB_EXERCISE]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/{WORKOUT_ID}/exercises", json=VALID_EXERCISE)
@@ -580,6 +607,7 @@ async def test_add_exercise_injects_workout_id():
         MagicMock(data=[DB_EXERCISE]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post(f"{BASE}/{WORKOUT_ID}/exercises", json=VALID_EXERCISE)
@@ -593,6 +621,7 @@ async def test_add_exercise_workout_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/{WORKOUT_ID}/exercises", json=VALID_EXERCISE)
@@ -605,6 +634,7 @@ async def test_add_exercise_wrong_workout_owner_returns_403():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=OTHER_ROW)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/{WORKOUT_ID}/exercises", json=VALID_EXERCISE)
@@ -647,6 +677,7 @@ async def test_add_exercise_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/{WORKOUT_ID}/exercises", json=VALID_EXERCISE)
@@ -678,6 +709,7 @@ async def test_patch_exercise_returns_200():
         MagicMock(data=[updated]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
@@ -697,6 +729,7 @@ async def test_patch_exercise_only_sends_provided_fields():
         MagicMock(data=[DB_EXERCISE]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.patch(
@@ -714,6 +747,7 @@ async def test_patch_exercise_empty_body_returns_422():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = [MagicMock(data=OWNED_ROW)]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
@@ -728,6 +762,7 @@ async def test_patch_exercise_workout_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
@@ -742,6 +777,7 @@ async def test_patch_exercise_wrong_workout_owner_returns_403():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=OTHER_ROW)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
@@ -760,6 +796,7 @@ async def test_patch_exercise_exercise_not_found_returns_404():
         MagicMock(data=[]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
@@ -784,6 +821,7 @@ async def test_patch_exercise_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
@@ -819,6 +857,7 @@ async def test_delete_exercise_returns_204():
         MagicMock(data=[]),                          # delete
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}/exercises/{EXERCISE_ID}")
@@ -831,6 +870,7 @@ async def test_delete_exercise_workout_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}/exercises/{EXERCISE_ID}")
@@ -843,6 +883,7 @@ async def test_delete_exercise_wrong_workout_owner_returns_403():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=OTHER_ROW)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}/exercises/{EXERCISE_ID}")
@@ -858,6 +899,7 @@ async def test_delete_exercise_exercise_not_found_returns_404():
         MagicMock(data=None),   # existence check → not found
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}/exercises/{EXERCISE_ID}")
@@ -870,6 +912,7 @@ async def test_delete_exercise_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{WORKOUT_ID}/exercises/{EXERCISE_ID}")

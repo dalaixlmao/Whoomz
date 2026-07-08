@@ -3,23 +3,29 @@ import 'package:flutter/material.dart';
 /// Design tokens from the Whoomz AI board:
 /// #FAF9F6 paper · #111110 ink · one electric accent held under 5% of any
 /// screen (voice state, streaming caret, primary CTA). 1g: OLED true black.
+/// The accent is switchable in Tweaks; everything else is fixed.
 class WhoomzPalette {
   const WhoomzPalette({
     required this.paper,
     required this.ink,
     required this.surface,
+    this.accent = electric,
   });
 
   final Color paper;
   final Color ink;
   final Color surface;
+  final Color accent;
 
-  static const Color accent = Color(0xFF2635F0);
+  static const Color electric = Color(0xFF2635F0);
 
   Color get whisper => ink.withValues(alpha: 0.45);
   Color get faint => ink.withValues(alpha: 0.22);
   Color get hairline => ink.withValues(alpha: 0.08);
   Color get onInk => paper;
+
+  WhoomzPalette withAccent(Color accent) =>
+      WhoomzPalette(paper: paper, ink: ink, surface: surface, accent: accent);
 
   static const WhoomzPalette light = WhoomzPalette(
     paper: Color(0xFFFAF9F6),
@@ -78,7 +84,10 @@ class WhoomzType {
   );
 }
 
-ThemeData whoomzTheme(Brightness brightness) {
+ThemeData whoomzTheme(
+  Brightness brightness, {
+  Color accent = WhoomzPalette.electric,
+}) {
   final palette = brightness == Brightness.dark
       ? WhoomzPalette.dark
       : WhoomzPalette.light;
@@ -88,21 +97,24 @@ ThemeData whoomzTheme(Brightness brightness) {
     fontFamily: WhoomzType.family,
     scaffoldBackgroundColor: palette.paper,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: WhoomzPalette.accent,
+      seedColor: accent,
       brightness: brightness,
+      primary: accent,
       surface: palette.paper,
       onSurface: palette.ink,
     ),
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    textSelectionTheme: const TextSelectionThemeData(
-      cursorColor: WhoomzPalette.accent,
-    ),
+    textSelectionTheme: TextSelectionThemeData(cursorColor: accent),
   );
 }
 
 extension WhoomzContext on BuildContext {
-  WhoomzPalette get wz => Theme.of(this).brightness == Brightness.dark
-      ? WhoomzPalette.dark
-      : WhoomzPalette.light;
+  WhoomzPalette get wz {
+    final theme = Theme.of(this);
+    final base = theme.brightness == Brightness.dark
+        ? WhoomzPalette.dark
+        : WhoomzPalette.light;
+    return base.withAccent(theme.colorScheme.primary);
+  }
 }

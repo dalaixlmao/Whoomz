@@ -57,6 +57,26 @@ class TokenStorage {
     return (id: id, email: email, name: name);
   }
 
+  /// Turning remember-me off keeps the session alive in memory but wipes the
+  /// disk, so the next launch starts signed out. Turning it on re-persists
+  /// the in-memory session.
+  Future<void> setRememberMe(bool remember) async {
+    _sessionOnly = !remember;
+    if (!remember) {
+      await _storage.deleteAll();
+      return;
+    }
+    final access = _memoryCache[_accessKey];
+    final refresh = _memoryCache[_refreshKey];
+    if (access == null || refresh == null) return;
+    await _storage.write(key: _accessKey, value: access);
+    await _storage.write(key: _refreshKey, value: refresh);
+    for (final key in [_userIdKey, _userEmailKey, _userNameKey]) {
+      final value = _memoryCache[key];
+      if (value != null) await _storage.write(key: key, value: value);
+    }
+  }
+
   Future<void> deleteAll() async {
     _memoryCache.clear();
     _sessionOnly = false;

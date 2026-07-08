@@ -18,6 +18,10 @@ class FoodLogRepository {
     return FoodLog.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<void> delete(String id) async {
+    await _dio.delete('${ApiEndpoints.foodLogs}$id');
+  }
+
   Future<List<FoodLog>> listByDate(DateTime date) async {
     final response = await _dio.get(
       ApiEndpoints.foodLogs,

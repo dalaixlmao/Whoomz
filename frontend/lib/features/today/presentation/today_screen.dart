@@ -6,11 +6,13 @@ import '../../../app/theme.dart';
 import '../../../core/units.dart';
 import '../../../shared/widgets/composer.dart';
 import '../../../shared/widgets/trend_line.dart';
-import '../../auth/presentation/auth_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
+import '../../food_logs/presentation/meals_screen.dart';
 import '../../progress/presentation/progress_screen.dart';
 import '../../quick_log/quick_log_sheet.dart';
+import '../../tweaks/tweaks_screen.dart';
 import '../../voice/presentation/voice_screen.dart';
+import '../../workouts/presentation/workout_screens.dart';
 import 'today_providers.dart';
 
 class TodayScreen extends ConsumerWidget {
@@ -22,48 +24,17 @@ class TodayScreen extends ConsumerWidget {
     ).push(MaterialPageRoute(builder: (_) => const ProgressScreen()));
   }
 
-  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
-    final wz = context.wz;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: wz.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Sign out?',
-          style: WhoomzType.body.copyWith(
-            color: wz.ink,
-            fontWeight: FontWeight.w500,
-            fontSize: 19,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'CANCEL',
-              style: WhoomzType.caps.copyWith(color: wz.whisper),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'SIGN OUT',
-              style: WhoomzType.caps.copyWith(color: wz.ink),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(authControllerProvider.notifier).signOut();
-    }
+  String _dateLine(int streak) {
+    final date = capsDate(DateTime.now());
+    if (streak < 2) return date;
+    return '$date · ${streak >= 14 ? '14+' : streak} DAYS LOGGED';
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final wz = context.wz;
     final snapshot = ref.watch(todayProvider).valueOrNull;
+    final streak = ref.watch(streakProvider).valueOrNull ?? 0;
 
     final kcal = snapshot?.kcalToday ?? 0;
     final whisper =
@@ -87,15 +58,20 @@ class TodayScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onLongPress: () => _confirmSignOut(context, ref),
+                  onLongPress: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const TweaksScreen()),
+                  ),
                   child: Text(
-                    capsDate(DateTime.now()),
+                    _dateLine(streak),
                     style: WhoomzType.caps.copyWith(color: wz.whisper),
                   ),
                 ),
                 const Spacer(),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const MealsScreen()),
+                  ),
                   onLongPress: () =>
                       showQuickLog(context, initial: QuickLogTab.meal),
                   child: AnimatedSwitcher(
@@ -110,7 +86,9 @@ class TodayScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'KCAL TODAY',
+                  snapshot?.macrosLine == null
+                      ? 'KCAL TODAY'
+                      : 'KCAL TODAY · ${snapshot!.macrosLine}',
                   style: WhoomzType.caps.copyWith(color: wz.whisper),
                 ),
                 const SizedBox(height: 16),
@@ -140,14 +118,25 @@ class TodayScreen extends ConsumerWidget {
                   ),
                 if (snapshot?.workoutLine != null) ...[
                   const SizedBox(height: 32),
-                  Text(
-                    'WORKOUT',
-                    style: WhoomzType.caps.copyWith(color: wz.whisper),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    snapshot!.workoutLine!,
-                    style: WhoomzType.body.copyWith(color: wz.ink),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const WorkoutsScreen()),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'WORKOUT',
+                          style: WhoomzType.caps.copyWith(color: wz.whisper),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot!.workoutLine!,
+                          style: WhoomzType.body.copyWith(color: wz.ink),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 const Spacer(flex: 2),

@@ -13,6 +13,9 @@ TodaySnapshot _snapshot() => TodaySnapshot(
       id: '1',
       name: 'Chicken bowl',
       calories: 610,
+      proteinG: 42,
+      carbsG: 55,
+      fatG: 18,
       mealType: MealType.lunch,
       loggedAt: DateTime(2026, 7, 7, 12),
     ),
@@ -28,7 +31,10 @@ void main() {
   Future<void> pump(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [todayProvider.overrideWith((ref) async => _snapshot())],
+        overrides: [
+          todayProvider.overrideWith((ref) async => _snapshot()),
+          streakProvider.overrideWith((ref) async => 12),
+        ],
         child: MaterialApp(
           theme: whoomzTheme(Brightness.light),
           home: const TodayScreen(),
@@ -42,7 +48,6 @@ void main() {
     await pump(tester);
 
     expect(find.text('1,284'), findsOneWidget);
-    expect(find.text('KCAL TODAY'), findsOneWidget);
     expect(
       find.text('Down 0.6 this week — keep the easy pace.'),
       findsOneWidget,
@@ -53,6 +58,18 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('172.4'), findsOneWidget);
+  });
+
+  testWidgets('folds macros into the kcal caps line', (tester) async {
+    await pump(tester);
+
+    expect(find.text('KCAL TODAY · P 42 · C 55 · F 18'), findsOneWidget);
+  });
+
+  testWidgets('folds the streak into the date line', (tester) async {
+    await pump(tester);
+
+    expect(find.textContaining('· 12 DAYS LOGGED'), findsOneWidget);
   });
 
   testWidgets('composer invites the conversation', (tester) async {

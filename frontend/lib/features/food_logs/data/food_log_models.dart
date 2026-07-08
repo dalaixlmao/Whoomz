@@ -20,6 +20,9 @@ class FoodLog {
   final String id;
   final String name;
   final int calories;
+  final double? proteinG;
+  final double? carbsG;
+  final double? fatG;
   final MealType mealType;
   final DateTime loggedAt;
 
@@ -27,6 +30,9 @@ class FoodLog {
     required this.id,
     required this.name,
     required this.calories,
+    this.proteinG,
+    this.carbsG,
+    this.fatG,
     required this.mealType,
     required this.loggedAt,
   });
@@ -35,6 +41,9 @@ class FoodLog {
     id: json['id'] as String,
     name: json['name'] as String,
     calories: json['calories'] as int,
+    proteinG: (json['protein_g'] as num?)?.toDouble(),
+    carbsG: (json['carbs_g'] as num?)?.toDouble(),
+    fatG: (json['fat_g'] as num?)?.toDouble(),
     mealType: MealType.fromJson(json['meal_type'] as String),
     loggedAt: DateTime.parse(json['logged_at'] as String),
   );

@@ -6,7 +6,7 @@ import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
-from app.dependencies import get_current_user, get_supabase
+from app.dependencies import get_current_user, get_supabase, get_user_supabase
 from app.main import app
 
 # ---------------------------------------------------------------------------
@@ -57,6 +57,7 @@ def reset_overrides():
 def auth_override():
     """All food-log tests run as an authenticated user by default."""
     app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+    app.dependency_overrides[get_user_supabase] = lambda: MagicMock()
 
 
 def _mock_supabase() -> MagicMock:
@@ -92,6 +93,7 @@ async def test_create_food_log_returns_201():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_ROW])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/", json=VALID_LOG)
@@ -111,6 +113,7 @@ async def test_create_food_log_injects_user_id():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_ROW])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post(f"{BASE}/", json=VALID_LOG)
@@ -129,6 +132,7 @@ async def test_create_food_log_optional_macros_omitted():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[row])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/", json=minimal)
@@ -168,6 +172,7 @@ async def test_create_food_log_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB error")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"{BASE}/", json=VALID_LOG)
@@ -197,6 +202,7 @@ async def test_list_food_logs_returns_rows_for_date():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[DB_ROW, row2])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/", params={"date": "2024-03-15"})
@@ -213,6 +219,7 @@ async def test_list_food_logs_empty_date_returns_empty_list():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"{BASE}/", params={"date": "2020-01-01"})
@@ -243,6 +250,7 @@ async def test_list_food_logs_filters_by_user_id():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=[])
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.get(f"{BASE}/", params={"date": "2024-03-15"})
@@ -275,6 +283,7 @@ async def test_delete_food_log_returns_204():
         MagicMock(data=[]),
     ]
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{LOG_ID}")
@@ -287,6 +296,7 @@ async def test_delete_food_log_not_found_returns_404():
     sb, chain = _mock_supabase()
     chain.execute.return_value = MagicMock(data=None)
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{LOG_ID}")
@@ -302,6 +312,7 @@ async def test_delete_food_log_wrong_owner_returns_403():
         data={"id": LOG_ID, "user_id": OTHER_USER_ID}
     )
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{LOG_ID}")
@@ -314,6 +325,7 @@ async def test_delete_food_log_supabase_error_returns_400():
     sb, chain = _mock_supabase()
     chain.execute.side_effect = Exception("DB connection lost")
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(f"{BASE}/{LOG_ID}")

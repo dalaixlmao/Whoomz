@@ -6,7 +6,7 @@ import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
-from app.dependencies import get_supabase
+from app.dependencies import get_supabase, get_user_supabase
 from app.main import app
 
 # ---------------------------------------------------------------------------
@@ -80,6 +80,7 @@ def reset_overrides():
 
 def _override_supabase(client):
     app.dependency_overrides[get_supabase] = lambda: client
+    app.dependency_overrides[get_user_supabase] = lambda: client
 
 
 # ---------------------------------------------------------------------------

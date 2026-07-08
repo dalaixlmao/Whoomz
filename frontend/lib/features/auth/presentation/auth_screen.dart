@@ -204,7 +204,7 @@ class _PrimaryButton extends StatelessWidget {
           height: 56,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: WhoomzPalette.accent,
+            color: context.wz.accent,
             borderRadius: BorderRadius.circular(28),
           ),
           alignment: Alignment.center,

@@ -9,7 +9,7 @@ import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
-from app.dependencies import get_current_user, get_supabase
+from app.dependencies import get_current_user, get_supabase, get_user_supabase
 from app.main import app
 from app.schemas.chat import Message
 from app.services import chat_service
@@ -18,7 +18,7 @@ from app.services import chat_service
 # Constants
 # ---------------------------------------------------------------------------
 
-FAKE_USER = {"id": "user-123", "email": "test@whoomz.app"}
+FAKE_USER = {"id": "user-123", "email": "test@whoomz.app", "token": "tok-123"}
 VALID_PAYLOAD = {"session_id": "sess-abc", "message": "How many calories today?"}
 
 
@@ -27,42 +27,26 @@ VALID_PAYLOAD = {"session_id": "sess-abc", "message": "How many calories today?"
 # ---------------------------------------------------------------------------
 
 
-class _FakeTextStream:
-    def __init__(self, tokens: list[str]):
-        self._tokens = tokens
+class _FakeAIService:
+    """Stands in for the centralized AIService: yields SSE text chunks, or raises."""
 
-    def __aiter__(self):
-        return self._iter()
-
-    async def _iter(self):
-        for t in self._tokens:
-            yield t
-
-
-class _FakeStreamCtx:
-    """Async context manager that yields tokens from text_stream."""
-
-    def __init__(self, tokens: list[str]):
-        self.text_stream = _FakeTextStream(tokens)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        pass
-
-
-class _ErrorStreamCtx:
-    """Async context manager that raises on __aenter__ to simulate Anthropic errors."""
-
-    def __init__(self, exc: Exception):
+    def __init__(self, chunks: list[str] | None = None, exc: Exception | None = None):
+        self._chunks = chunks or []
         self._exc = exc
 
-    async def __aenter__(self):
-        raise self._exc
+    async def stream(self, messages, system_prompt, tools=None):
+        if self._exc is not None:
+            raise self._exc
+        for chunk in self._chunks:
+            yield f'data: {json.dumps({"text": chunk})}\n\n'
 
-    async def __aexit__(self, *args):
-        pass
+    async def stream_after_tools(self, *args, **kwargs):
+        return
+        yield  # pragma: no cover
+
+
+def _patch_ai(chunks: list[str] | None = None, exc: Exception | None = None):
+    return patch.object(chat_service, "AIService", return_value=_FakeAIService(chunks, exc))
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +68,7 @@ async def _fake_chat_stream(*args, **kwargs) -> AsyncIterator[str]:
 def _mock_supabase():
     sb = MagicMock()
     chain = MagicMock()
-    for method in ("select", "insert", "update", "delete", "eq", "gte", "lte", "order", "is_", "limit", "maybe_single"):
+    for method in ("select", "insert", "update", "delete", "eq", "ilike", "gte", "lte", "order", "is_", "limit", "maybe_single"):
         getattr(chain, method).return_value = chain
     sb.table.return_value = chain
     return sb, chain
@@ -119,6 +103,7 @@ def reset_chat_history():
 @pytest.fixture
 def auth_override():
     app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+    app.dependency_overrides[get_user_supabase] = lambda: MagicMock()
 
 
 @pytest.fixture
@@ -128,6 +113,7 @@ def full_override():
     _default_context_responses(chain)
     app.dependency_overrides[get_current_user] = lambda: FAKE_USER
     app.dependency_overrides[get_supabase] = lambda: sb
+    app.dependency_overrides[get_user_supabase] = lambda: sb
     return sb, chain
 
 
@@ -165,7 +151,8 @@ async def test_unauthenticated_request_returns_401():
 @pytest.mark.anyio
 async def test_session_ownership_mismatch_returns_403():
     chat_service._history["shared-sess"] = ("user-A", [])
-    app.dependency_overrides[get_current_user] = lambda: {"id": "user-B", "email": "b@test.com"}
+    app.dependency_overrides[get_current_user] = lambda: {"id": "user-B", "email": "b@test.com", "token": "tok-B"}
+    app.dependency_overrides[get_user_supabase] = lambda: MagicMock()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -179,7 +166,8 @@ async def test_session_ownership_mismatch_returns_403():
 @pytest.mark.anyio
 async def test_new_session_by_second_user_is_allowed():
     chat_service._history["sess-A"] = ("user-A", [])
-    app.dependency_overrides[get_current_user] = lambda: {"id": "user-B", "email": "b@test.com"}
+    app.dependency_overrides[get_current_user] = lambda: {"id": "user-B", "email": "b@test.com", "token": "tok-B"}
+    app.dependency_overrides[get_user_supabase] = lambda: MagicMock()
 
     with patch.object(chat_service, "chat", side_effect=_fake_chat_stream):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -296,16 +284,17 @@ async def test_sentence_buffering_splits_on_punctuation():
     sb, chain = _mock_supabase()
     _default_context_responses(chain)
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["Hello world!", " How are you?"])
-        events = [chunk async for chunk in chat_service.chat("user-123", "s1", "hi", sb)]
+    with _patch_ai(["Hello world!", " How are you?"]):
+        events = [
+            chunk async for chunk in chat_service.chat("user-123", "s1", "hi", sb, "tok-123")
+        ]
 
     payloads = [json.loads(e.removeprefix("data: ").strip()) for e in events]
     text_events = [p for p in payloads if "text" in p]
 
     assert len(text_events) == 2
     assert text_events[0]["text"] == "Hello world!"
-    assert text_events[1]["text"] == "How are you?"
+    assert text_events[1]["text"] == " How are you?"
     assert payloads[-1] == {"done": True}
 
 
@@ -314,9 +303,10 @@ async def test_remainder_without_trailing_punctuation_is_flushed():
     sb, chain = _mock_supabase()
     _default_context_responses(chain)
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["No punctuation here"])
-        events = [chunk async for chunk in chat_service.chat("user-123", "s1", "hi", sb)]
+    with _patch_ai(["No punctuation here"]):
+        events = [
+            chunk async for chunk in chat_service.chat("user-123", "s1", "hi", sb, "tok-123")
+        ]
 
     payloads = [json.loads(e.removeprefix("data: ").strip()) for e in events]
     text_events = [p for p in payloads if "text" in p]
@@ -331,9 +321,8 @@ async def test_history_saved_after_successful_turn():
     sb, chain = _mock_supabase()
     _default_context_responses(chain)
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["Good work!"])
-        async for _ in chat_service.chat("user-123", "sess-h", "Push harder!", sb):
+    with _patch_ai(["Good work!"]):
+        async for _ in chat_service.chat("user-123", "sess-h", "Push harder!", sb, "tok-123"):
             pass
 
     _, messages = chat_service._history["sess-h"]
@@ -355,9 +344,8 @@ async def test_history_trimmed_when_over_max():
     ]
     chat_service._history["sess-trim"] = ("user-123", seed)
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["Nice!"])
-        async for _ in chat_service.chat("user-123", "sess-trim", "One more", sb):
+    with _patch_ai(["Nice!"]):
+        async for _ in chat_service.chat("user-123", "sess-trim", "One more", sb, "tok-123"):
             pass
 
     _, messages = chat_service._history["sess-trim"]
@@ -377,9 +365,8 @@ async def test_food_logs_fetched_for_context():
         MagicMock(data=[]),  # no active workout
     ]
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["Great!"])
-        async for _ in chat_service.chat("user-123", "s1", "hi", sb):
+    with _patch_ai(["Great!"]):
+        async for _ in chat_service.chat("user-123", "s1", "hi", sb, "tok-123"):
             pass
 
     table_calls = [call.args[0] for call in sb.table.call_args_list]
@@ -394,9 +381,8 @@ async def test_active_workout_fetched_for_context():
         MagicMock(data=[{"id": "w1", "name": "Leg Day", "started_at": "2026-05-28T09:00:00+00:00"}]),
     ]
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["Keep going!"])
-        async for _ in chat_service.chat("user-123", "s1", "hi", sb):
+    with _patch_ai(["Keep going!"]):
+        async for _ in chat_service.chat("user-123", "s1", "hi", sb, "tok-123"):
             pass
 
     table_calls = [call.args[0] for call in sb.table.call_args_list]
@@ -409,9 +395,10 @@ async def test_supabase_context_error_does_not_crash_stream():
     sb = MagicMock()
     sb.table.side_effect = Exception("DB unreachable")
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _FakeStreamCtx(["Still here!"])
-        events = [chunk async for chunk in chat_service.chat("user-123", "s1", "hi", sb)]
+    with _patch_ai(["Still here!"]):
+        events = [
+            chunk async for chunk in chat_service.chat("user-123", "s1", "hi", sb, "tok-123")
+        ]
 
     payloads = [json.loads(e.removeprefix("data: ").strip()) for e in events]
     assert payloads[-1] == {"done": True}
@@ -428,8 +415,7 @@ async def test_anthropic_api_status_error_emits_sse_error(full_override):
     mock_response.status_code = 500
     exc = anthropic.APIStatusError("Server error", response=mock_response, body=None)
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _ErrorStreamCtx(exc)
+    with _patch_ai(exc=exc):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/v1/chat/", json=VALID_PAYLOAD)
 
@@ -445,8 +431,7 @@ async def test_anthropic_api_status_error_emits_sse_error(full_override):
 async def test_anthropic_connection_error_emits_sse_error(full_override):
     exc = anthropic.APIConnectionError(request=MagicMock())
 
-    with patch.object(chat_service, "_anthropic") as mock_client:
-        mock_client.messages.stream.return_value = _ErrorStreamCtx(exc)
+    with _patch_ai(exc=exc):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/v1/chat/", json=VALID_PAYLOAD)
 
@@ -456,3 +441,43 @@ async def test_anthropic_connection_error_emits_sse_error(full_override):
 
     assert any("error" in p for p in payloads)
     assert payloads[-1] == {"done": True}
+
+
+# ---------------------------------------------------------------------------
+# Group 7: delete_food_log tool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_delete_food_tool_removes_todays_match():
+    sb, chain = _mock_supabase()
+    chain.execute.return_value = MagicMock(
+        data=[{"id": "log-1", "name": "Samosa", "calories": 180, "meal_type": "snack"}]
+    )
+
+    with patch.object(chat_service.food_log_service, "delete") as mock_delete:
+        action_sse, result = await chat_service._run_delete_food(
+            {"name": "samosa"}, "user-123", sb
+        )
+
+    mock_delete.assert_awaited_once_with("user-123", "log-1", sb)
+    payload = json.loads(action_sse.removeprefix("data: ").strip())
+    assert payload["action"] == "food_removed"
+    assert payload["data"]["name"] == "Samosa"
+    assert "Removed" in result
+
+
+@pytest.mark.anyio
+async def test_delete_food_tool_no_match_reports_failure():
+    sb, chain = _mock_supabase()
+    chain.execute.return_value = MagicMock(data=[])
+
+    with patch.object(chat_service.food_log_service, "delete") as mock_delete:
+        action_sse, result = await chat_service._run_delete_food(
+            {"name": "pizza"}, "user-123", sb
+        )
+
+    mock_delete.assert_not_awaited()
+    payload = json.loads(action_sse.removeprefix("data: ").strip())
+    assert payload["action"] == "log_failed"
+    assert "pizza" in result

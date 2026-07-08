@@ -27,7 +27,38 @@ class TodaySnapshot {
   /// The daily note — one quiet line under the number.
   final String? whisper;
   final String? workoutLine;
+
+  /// "P 84 · C 210 · F 56" — second whisper under the number; null when the
+  /// day's logs carry no macro estimates.
+  String? get macrosLine {
+    double protein = 0, carbs = 0, fat = 0;
+    for (final f in foods) {
+      protein += f.proteinG ?? 0;
+      carbs += f.carbsG ?? 0;
+      fat += f.fatG ?? 0;
+    }
+    if (protein + carbs + fat == 0) return null;
+    return 'P ${protein.round()} · C ${carbs.round()} · F ${fat.round()}';
+  }
 }
+
+/// Consecutive days with at least one food log, walking back from today
+/// (an unlogged today doesn't break the streak). One request per day of
+/// streak, capped at 14.
+final streakProvider = FutureProvider<int>((ref) async {
+  final repo = ref.read(foodLogRepositoryProvider);
+  final today = DateTime.now();
+  var streak = 0;
+  for (var i = 0; i < 14; i++) {
+    final logs = await repo.listByDate(today.subtract(Duration(days: i)));
+    if (logs.isEmpty) {
+      if (i == 0) continue;
+      break;
+    }
+    streak++;
+  }
+  return streak;
+});
 
 final todayProvider = FutureProvider<TodaySnapshot>((ref) async {
   final now = DateTime.now();

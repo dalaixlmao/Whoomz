@@ -22,7 +22,12 @@ class TrendLine extends StatelessWidget {
       height: height,
       width: double.infinity,
       child: CustomPaint(
-        painter: _TrendPainter(values: values, ink: wz.ink, showDots: showDots),
+        painter: _TrendPainter(
+          values: values,
+          ink: wz.ink,
+          accent: wz.accent,
+          showDots: showDots,
+        ),
       ),
     );
   }
@@ -32,11 +37,13 @@ class _TrendPainter extends CustomPainter {
   const _TrendPainter({
     required this.values,
     required this.ink,
+    required this.accent,
     required this.showDots,
   });
 
   final List<double> values;
   final Color ink;
+  final Color accent;
   final bool showDots;
 
   @override
@@ -46,7 +53,7 @@ class _TrendPainter extends CustomPainter {
         canvas.drawCircle(
           Offset(size.width / 2, size.height / 2),
           4,
-          Paint()..color = WhoomzPalette.accent,
+          Paint()..color = accent,
         );
       }
       return;
@@ -84,14 +91,13 @@ class _TrendPainter extends CustomPainter {
         canvas.drawCircle(point(i), 3, dot);
       }
     }
-    canvas.drawCircle(
-      point(values.length - 1),
-      4.5,
-      Paint()..color = WhoomzPalette.accent,
-    );
+    canvas.drawCircle(point(values.length - 1), 4.5, Paint()..color = accent);
   }
 
   @override
   bool shouldRepaint(covariant _TrendPainter old) =>
-      old.values != values || old.ink != ink || old.showDots != showDots;
+      old.values != values ||
+      old.ink != ink ||
+      old.accent != accent ||
+      old.showDots != showDots;
 }
